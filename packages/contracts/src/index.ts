@@ -6,3 +6,5 @@ export * from './cart.js';
 export * from './checkout.js';
 export * from './orders.js';
 export * from './coupons.js';
+export * from './users.js';
+export * from './inventory.js';

@@ -1,12 +1,18 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { validateEnv } from './config/env.schema';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
+import { PricingModule } from './modules/pricing/pricing.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { CartModule } from './modules/cart/cart.module';
 import { AuthGuard } from './common/guards/auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -18,11 +24,17 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
       isGlobal: true,
       validate: validateEnv,
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     RedisModule,
     QueueModule,
     HealthModule,
     AuthModule,
+    UsersModule,
+    PricingModule,
+    CatalogModule,
+    InventoryModule,
+    CartModule,
   ],
   providers: [
     {
