@@ -1,14 +1,14 @@
 {
   "moduleFileExtensions": ["js", "json", "ts"],
-  "rootDir": "..",
+  "rootDir": ".",
   "testRegex": ".*\\.spec\\.ts$",
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
+    "^.+\\.ts$": "ts-jest"
   },
   "collectCoverageFrom": ["src/**/*.(t|j)s"],
   "coverageDirectory": "coverage",
   "testEnvironment": "node",
   "moduleNameMapper": {
-    "^@seethapaati/contracts$": "<rootDir>/../../packages/contracts/src"
+    "^@seethapaati/contracts$": "<rootDir>/../../packages/contracts/dist/index.js"
   }
 }

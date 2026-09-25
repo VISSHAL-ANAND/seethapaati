@@ -45,7 +45,9 @@ export class HealthController {
       redisStatus = 'healthy';
     }
 
-    const isReady = dbStatus === 'healthy';
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging';
+    // In production, Redis is a mandatory dependency for readiness
+    const isReady = dbStatus === 'healthy' && (!isProduction || redisStatus === 'healthy');
 
     return res.status(isReady ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE).json({
       status: isReady ? 'ready' : 'not_ready',

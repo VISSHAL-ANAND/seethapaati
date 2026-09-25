@@ -7,12 +7,14 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { HashingService } from './hashing.service';
 import {
   RegisterRequest,
   LoginRequest,
   AuthUser,
   AuthResponse,
+  JwtPayload,
   RoleName,
   ROLE_DEFAULT_PERMISSIONS,
 } from '@seethapaati/contracts';
@@ -20,9 +22,11 @@ import {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly authCacheTtlSeconds = 120; // 2 minutes cache window to prevent stale permissions
 
   constructor(
     private prisma: PrismaService,
+    private redis: RedisService,
     private hashing: HashingService,
     private jwtService: JwtService,
     private configService: ConfigService,
@@ -87,7 +91,17 @@ export class AuthService {
       isEmailVerified: user.isEmailVerified,
     };
 
-    const token = await this.jwtService.signAsync(authUser);
+    // Storing ONLY sub and email in the JWT - no permissions or roles embedded
+    // to prevent privilege escalation or 7-day stale permission windows
+    const jwtPayload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+    };
+
+    const token = await this.jwtService.signAsync(jwtPayload);
+
+    // Cache the initial user auth state
+    await this.cacheAuthUser(authUser);
 
     this.logger.log(`New user registered: ${user.email} [${user.id}]`);
 
@@ -143,7 +157,16 @@ export class AuthService {
       isEmailVerified: user.isEmailVerified,
     };
 
-    const token = await this.jwtService.signAsync(authUser);
+    // Storing ONLY sub and email in the JWT payload
+    const jwtPayload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+    };
+
+    const token = await this.jwtService.signAsync(jwtPayload);
+
+    // Cache the auth state
+    await this.cacheAuthUser(authUser);
 
     return {
       user: authUser,
@@ -152,7 +175,22 @@ export class AuthService {
     };
   }
 
-  async getCurrentUser(userId: string): Promise<AuthUser> {
+  /**
+   * Resolves current user authentication and authorization details.
+   * Employs short-lived Redis caching (120s) with fast database fallback.
+   * Ensures role/permission changes take effect without waiting for JWT expiry.
+   */
+  async getAuthUser(userId: string): Promise<AuthUser> {
+    const cacheKey = `auth:user:${userId}`;
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached) as AuthUser;
+      }
+    } catch {
+      // Redis error or cache miss, proceed to DB
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -163,11 +201,14 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException({
+        error: 'USER_NOT_FOUND',
+        message: 'User account no longer exists or session is invalid',
+      });
     }
 
     const roles: RoleName[] = user.userRoles.map((ur) => ur.role.name as RoleName);
-    return {
+    const authUser: AuthUser = {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
@@ -175,6 +216,33 @@ export class AuthService {
       permissions: this.resolvePermissions(roles),
       isEmailVerified: user.isEmailVerified,
     };
+
+    await this.cacheAuthUser(authUser);
+    return authUser;
+  }
+
+  async getCurrentUser(userId: string): Promise<AuthUser> {
+    return this.getAuthUser(userId);
+  }
+
+  async invalidateUserAuthCache(userId: string): Promise<void> {
+    try {
+      await this.redis.del(`auth:user:${userId}`);
+    } catch (err) {
+      this.logger.warn(`Failed to invalidate auth cache for user ${userId}: ${(err as Error).message}`);
+    }
+  }
+
+  private async cacheAuthUser(authUser: AuthUser): Promise<void> {
+    try {
+      await this.redis.set(
+        `auth:user:${authUser.id}`,
+        JSON.stringify(authUser),
+        this.authCacheTtlSeconds,
+      );
+    } catch (err) {
+      this.logger.warn(`Failed to cache auth user ${authUser.id}: ${(err as Error).message}`);
+    }
   }
 
   private resolvePermissions(roles: RoleName[]): string[] {

@@ -4,7 +4,6 @@ import {
   Body,
   Get,
   Res,
-  HttpStatus,
   UsePipes,
 } from '@nestjs/common';
 import { Response } from 'express';

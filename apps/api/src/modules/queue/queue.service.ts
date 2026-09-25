@@ -1,7 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
-import { RedisService } from '../redis/redis.service';
 
 export enum QueueName {
   NOTIFICATIONS = 'notifications',
@@ -13,11 +12,12 @@ export enum QueueName {
 export class QueueService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(QueueService.name);
   private queues = new Map<QueueName, Queue>();
+  private readonly isProduction: boolean;
 
-  constructor(
-    private configService: ConfigService,
-    private redisService: RedisService,
-  ) {}
+  constructor(private configService: ConfigService) {
+    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+    this.isProduction = nodeEnv === 'production' || nodeEnv === 'staging';
+  }
 
   onModuleInit() {
     const host = this.configService.get<string>('REDIS_HOST', 'localhost');
@@ -38,6 +38,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.queues.set(name, queue);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
+        if (this.isProduction) {
+          this.logger.error(`❌ FATAL: Could not initialize BullMQ queue ${name} in production: ${msg}`);
+          throw new Error(`[QueueService] Failed to initialize BullMQ queue ${name} in production: ${msg}`);
+        }
         this.logger.warn(`Could not initialize BullMQ queue ${name}: ${msg}`);
       }
     }
@@ -48,7 +52,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   async addJob<T>(queueName: QueueName, jobName: string, data: T, opts?: Record<string, unknown>) {
     const queue = this.queues.get(queueName);
     if (!queue) {
-      this.logger.warn(`Queue ${queueName} not available. Job ${jobName} skipped in mock mode.`);
+      if (this.isProduction) {
+        throw new Error(`[QueueService] BullMQ queue "${queueName}" is unavailable in production. Job "${jobName}" cannot be processed.`);
+      }
+      this.logger.warn(`Queue ${queueName} not available. Job ${jobName} skipped in dev mode.`);
       return null;
     }
     return await queue.add(jobName, data, opts);

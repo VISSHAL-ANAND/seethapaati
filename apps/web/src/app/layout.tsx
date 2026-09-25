@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Cormorant_Garamond, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { Hairline } from '../components/ui/Hairline';
@@ -51,12 +52,12 @@ export default function RootLayout({
               <a href="#provenance" className="hover:text-[#181513] transition-colors">Provenance</a>
             </nav>
 
-            <a href="/" className="font-serif text-2xl md:text-3xl tracking-tight font-medium text-[#181513] text-center">
+            <Link href="/" className="font-serif text-2xl md:text-3xl tracking-tight font-medium text-[#181513] text-center">
               {STORE_NAME}
-            </a>
+            </Link>
 
             <div className="flex items-center space-x-6 text-[12px] uppercase tracking-[0.15em] font-medium text-[#181513]/80">
-              <a href="/account" className="hidden sm:inline hover:text-[#181513] transition-colors">Account</a>
+              <Link href="/account" className="hidden sm:inline hover:text-[#181513] transition-colors">Account</Link>
               <button className="hover:text-[#181513] transition-colors">
                 Pantry [0]
               </button>
@@ -93,9 +94,9 @@ export default function RootLayout({
               <div className="md:col-span-3">
                 <span className="text-[11px] font-sans uppercase tracking-[0.2em] text-[#F7F5F0]/50 block mb-4">Trust & Policies</span>
                 <ul className="space-y-2.5 text-[13px] font-sans tracking-[0.05em] text-[#F7F5F0]/80">
-                  <li><a href="/shipping" className="hover:text-white transition-colors">Shipping & Handling</a></li>
-                  <li><a href="/returns" className="hover:text-white transition-colors">Returns & Refunds</a></li>
-                  <li><a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a></li>
+                  <li><Link href="/shipping" className="hover:text-white transition-colors">Shipping & Handling</Link></li>
+                  <li><Link href="/returns" className="hover:text-white transition-colors">Returns & Refunds</Link></li>
+                  <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
                 </ul>
               </div>
             </div>

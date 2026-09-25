@@ -110,6 +110,12 @@ enum ProductStatus {
   ARCHIVED
 }
 
+enum VariantStatus {
+  ACTIVE
+  INACTIVE
+  DISCONTINUED
+}
+
 model Category {
   id          String     @id @default(uuid())
   parentId    String?    @map("parent_id")
@@ -169,7 +175,7 @@ model ProductVariant {
   packType            String   @default("Pouch") @map("pack_type")
   priceCents          Int      @map("price_cents") // Smallest currency unit (paise/cents)
   compareAtPriceCents Int?     @map("compare_at_price_cents")
-  status              String   @default("ACTIVE")
+  status              VariantStatus   @default(ACTIVE)
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
@@ -460,10 +466,15 @@ model PaymentWebhookEvent {
 // COUPONS & AUDIT LOGS
 // -------------------------------------------------------------
 
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
 model Coupon {
-  id             String    @id @default(uuid())
-  code           String    @unique
-  discountType   String    @map("discount_type") // PERCENTAGE or FIXED
+  id             String       @id @default(uuid())
+  code           String       @unique
+  discountType   DiscountType @map("discount_type")
   discountValue  Int       @map("discount_value")
   minOrderCents  Int       @default(0) @map("min_order_cents")
   maxDiscountCents Int?    @map("max_discount_cents")

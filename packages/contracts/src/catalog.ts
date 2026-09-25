@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+export enum VariantStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  DISCONTINUED = 'DISCONTINUED',
+}
+
+export const VariantStatusSchema = z.nativeEnum(VariantStatus);
+
 export const ProductVariantDtoSchema = z.object({
   id: z.string().uuid(),
   productId: z.string().uuid(),
@@ -9,6 +17,7 @@ export const ProductVariantDtoSchema = z.object({
   packType: z.string(), // e.g. "Glass Jar", "Craft Pouch"
   priceCents: z.number().int().nonnegative(), // Store in smallest currency unit (paise/cents)
   compareAtPriceCents: z.number().int().nonnegative().nullable().optional(),
+  status: VariantStatusSchema.default(VariantStatus.ACTIVE),
   availableStock: z.number().int().nonnegative(),
   isAvailable: z.boolean(),
 });

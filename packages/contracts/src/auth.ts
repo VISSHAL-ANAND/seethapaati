@@ -41,3 +41,12 @@ export const AuthResponseSchema = z.object({
 });
 
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
+
+export const JwtPayloadSchema = z.object({
+  sub: z.string().uuid(),
+  email: z.string().email(),
+  iat: z.number().optional(),
+  exp: z.number().optional(),
+});
+
+export type JwtPayload = z.infer<typeof JwtPayloadSchema>;
