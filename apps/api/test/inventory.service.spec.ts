@@ -139,14 +139,15 @@ describe('InventoryService - Concurrency, Locking & Lifecycle', () => {
         quantity: 3,
         status: 'ACTIVE',
       });
+      mockPrisma.inventoryReservation.updateMany.mockResolvedValue({ count: 1 });
 
       await inventoryService.commitReservation(reservationId);
 
-      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
-      expect(mockPrisma.inventoryReservation.update).toHaveBeenCalledWith({
-        where: { id: reservationId },
+      expect(mockPrisma.inventoryReservation.updateMany).toHaveBeenCalledWith({
+        where: { id: reservationId, status: 'ACTIVE' },
         data: { status: 'COMMITTED' },
       });
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
       expect(mockPrisma.inventoryMovement.create).toHaveBeenCalledWith({
         data: {
           variantId,
@@ -157,15 +158,23 @@ describe('InventoryService - Concurrency, Locking & Lifecycle', () => {
       });
     });
 
-    it('rejects commit if reservation is not ACTIVE', async () => {
+    it('rejects commit if reservation is not found in database', async () => {
+      mockPrisma.inventoryReservation.findUnique.mockResolvedValue(null);
+
+      await expect(inventoryService.commitReservation(reservationId)).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejects commit if atomic status update returns count 0 (race condition or not ACTIVE)', async () => {
       mockPrisma.inventoryReservation.findUnique.mockResolvedValue({
         id: reservationId,
         variantId,
         quantity: 3,
         status: 'EXPIRED',
       });
+      mockPrisma.inventoryReservation.updateMany.mockResolvedValue({ count: 0 });
 
       await expect(inventoryService.commitReservation(reservationId)).rejects.toThrow(ConflictException);
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
     });
   });
 
@@ -177,23 +186,25 @@ describe('InventoryService - Concurrency, Locking & Lifecycle', () => {
         quantity: 4,
         status: 'ACTIVE',
       });
+      mockPrisma.inventoryReservation.updateMany.mockResolvedValue({ count: 1 });
 
       await inventoryService.cancelReservation(reservationId);
 
-      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
-      expect(mockPrisma.inventoryReservation.update).toHaveBeenCalledWith({
-        where: { id: reservationId },
+      expect(mockPrisma.inventoryReservation.updateMany).toHaveBeenCalledWith({
+        where: { id: reservationId, status: 'ACTIVE' },
         data: { status: 'CANCELLED' },
       });
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
     });
 
-    it('is idempotent if reservation is already cancelled or expired', async () => {
+    it('is idempotent if reservation is already cancelled or expired (atomic update count 0)', async () => {
       mockPrisma.inventoryReservation.findUnique.mockResolvedValue({
         id: reservationId,
         variantId,
         quantity: 4,
         status: 'EXPIRED',
       });
+      mockPrisma.inventoryReservation.updateMany.mockResolvedValue({ count: 0 });
 
       await inventoryService.cancelReservation(reservationId);
 
@@ -216,8 +227,9 @@ describe('InventoryService - Concurrency, Locking & Lifecycle', () => {
         },
       ]);
 
+      // Both transition successfully
       mockPrisma.inventoryReservation.updateMany.mockResolvedValue({
-        count: 2,
+        count: 1,
       });
 
       const count = await inventoryService.expireStaleReservations();
@@ -225,12 +237,30 @@ describe('InventoryService - Concurrency, Locking & Lifecycle', () => {
       expect(count).toBe(2);
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(2);
       expect(mockPrisma.inventoryReservation.updateMany).toHaveBeenCalledWith({
-        where: {
-          id: { in: ['res_1', 'res_2'] },
-          status: 'ACTIVE',
-        },
+        where: { id: 'res_1', status: 'ACTIVE' },
         data: { status: 'EXPIRED' },
       });
+      expect(mockPrisma.inventoryReservation.updateMany).toHaveBeenCalledWith({
+        where: { id: 'res_2', status: 'ACTIVE' },
+        data: { status: 'EXPIRED' },
+      });
+    });
+
+    it('handles race conditions by only releasing inventory when atomic update count is 1', async () => {
+      mockPrisma.inventoryReservation.findMany.mockResolvedValue([
+        { id: 'res_1', variantId, quantity: 2 },
+        { id: 'res_2', variantId, quantity: 3 }, // concurrently committed
+      ]);
+
+      // res_1 succeeds (count: 1), res_2 fails because it was already committed (count: 0)
+      mockPrisma.inventoryReservation.updateMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+
+      const count = await inventoryService.expireStaleReservations();
+
+      expect(count).toBe(1);
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
     });
 
     it('returns 0 when no reservations have expired', async () => {

@@ -189,6 +189,7 @@ export class InventoryService {
   /**
    * Commit a reservation after successful payment.
    * Moves quantity from reserved → permanently sold (decrements both reserved and available).
+   * Atomically transitions state from ACTIVE → COMMITTED at the DB level to prevent double-commit race conditions.
    */
   async commitReservation(reservationId: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
@@ -200,7 +201,13 @@ export class InventoryService {
         throw new NotFoundException({ error: 'RESERVATION_NOT_FOUND', message: 'Reservation not found' });
       }
 
-      if (reservation.status !== 'ACTIVE') {
+      // Atomic transition: ACTIVE -> COMMITTED
+      const updateResult = await tx.inventoryReservation.updateMany({
+        where: { id: reservationId, status: 'ACTIVE' },
+        data: { status: 'COMMITTED' },
+      });
+
+      if (updateResult.count === 0) {
         throw new ConflictException({
           error: 'RESERVATION_NOT_ACTIVE',
           message: `Reservation is in state '${reservation.status}', cannot commit`,
@@ -215,11 +222,6 @@ export class InventoryService {
             updated_at = NOW()
         WHERE variant_id = ${reservation.variantId}
       `;
-
-      await tx.inventoryReservation.update({
-        where: { id: reservationId },
-        data: { status: 'COMMITTED' },
-      });
 
       await tx.inventoryMovement.create({
         data: {
@@ -237,6 +239,7 @@ export class InventoryService {
   /**
    * Cancel/release a reservation (payment failure or user abandonment).
    * Returns quantity back to available pool.
+   * Atomically transitions state from ACTIVE → CANCELLED at the DB level to prevent double-release race conditions.
    */
   async cancelReservation(reservationId: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
@@ -248,8 +251,14 @@ export class InventoryService {
         throw new NotFoundException({ error: 'RESERVATION_NOT_FOUND', message: 'Reservation not found' });
       }
 
-      if (reservation.status !== 'ACTIVE') {
-        // Already expired or committed — idempotent
+      // Atomic transition: ACTIVE -> CANCELLED
+      const updateResult = await tx.inventoryReservation.updateMany({
+        where: { id: reservationId, status: 'ACTIVE' },
+        data: { status: 'CANCELLED' },
+      });
+
+      if (updateResult.count === 0) {
+        // Already expired, committed, or cancelled — idempotent
         return;
       }
 
@@ -260,11 +269,6 @@ export class InventoryService {
             updated_at = NOW()
         WHERE variant_id = ${reservation.variantId}
       `;
-
-      await tx.inventoryReservation.update({
-        where: { id: reservationId },
-        data: { status: 'CANCELLED' },
-      });
     });
 
     this.logger.log(`Reservation ${reservationId} cancelled`);
@@ -275,14 +279,11 @@ export class InventoryService {
    * Called by the scheduler every 60 seconds.
    * Returns count of expired reservations.
    *
-   * TOCTOU safety: The entire fetch + inventory update + status change runs inside
-   * one transaction. Each inventory UPDATE is additionally guarded by
-   * WHERE status = 'ACTIVE' at the reservation level so that any reservation
-   * committed (paid) between scheduling cycles cannot have its stock double-released.
+   * TOCTOU safety: Each reservation transition from ACTIVE -> EXPIRED is atomic.
+   * Stock is ONLY decremented if the atomic status update succeeded (count === 1).
    */
   async expireStaleReservations(): Promise<number> {
     const expiredCount = await this.prisma.$transaction(async (tx) => {
-      // Fetch inside the transaction with a status recheck to close the TOCTOU window
       const expired = await tx.inventoryReservation.findMany({
         where: {
           status: 'ACTIVE',
@@ -292,31 +293,28 @@ export class InventoryService {
 
       if (expired.length === 0) return 0;
 
+      let releasedCount = 0;
       for (const res of expired) {
-        // Guard: only release if reservation is still ACTIVE (race-condition safety)
-        await tx.$executeRaw`
-          UPDATE inventory
-          SET quantity_reserved = GREATEST(0, quantity_reserved - ${res.quantity}),
-              version = version + 1,
-              updated_at = NOW()
-          WHERE variant_id = ${res.variantId}
-            AND EXISTS (
-              SELECT 1 FROM inventory_reservations
-              WHERE id = ${res.id} AND status = 'ACTIVE'
-            )
-        `;
+        // Atomic transition: ACTIVE -> EXPIRED
+        const updateResult = await tx.inventoryReservation.updateMany({
+          where: { id: res.id, status: 'ACTIVE' },
+          data: { status: 'EXPIRED' },
+        });
+
+        // Only release inventory if this transaction successfully transitioned the reservation
+        if (updateResult.count === 1) {
+          await tx.$executeRaw`
+            UPDATE inventory
+            SET quantity_reserved = GREATEST(0, quantity_reserved - ${res.quantity}),
+                version = version + 1,
+                updated_at = NOW()
+            WHERE variant_id = ${res.variantId}
+          `;
+          releasedCount++;
+        }
       }
 
-      // Mark all fetched reservations as EXPIRED (status filter re-applied to be safe)
-      const updateResult = await tx.inventoryReservation.updateMany({
-        where: {
-          id: { in: expired.map((r) => r.id) },
-          status: 'ACTIVE',
-        },
-        data: { status: 'EXPIRED' },
-      });
-
-      return updateResult.count;
+      return releasedCount;
     });
 
     if (expiredCount > 0) {

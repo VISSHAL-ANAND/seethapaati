@@ -27,12 +27,28 @@ export class AuthGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    if (isPublic) {
-      return true;
-    }
-
     const request = context.switchToHttp().getRequest<Request>();
     const token = this.extractTokenFromHeader(request) || request.cookies?.['access_token'];
+
+    if (isPublic) {
+      if (token) {
+        try {
+          const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
+            secret: this.configService.get<string>('JWT_SECRET'),
+          });
+          if (payload?.sub) {
+            const authUser = await this.authService.getAuthUser(payload.sub);
+            request['user'] = authUser;
+          }
+        } catch {
+          // Permissive auth for public routes: gracefully fall back to anonymous
+          request['user'] = undefined;
+        }
+      } else {
+        request['user'] = undefined;
+      }
+      return true;
+    }
 
     if (!token) {
       throw new UnauthorizedException({

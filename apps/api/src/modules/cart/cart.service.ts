@@ -35,25 +35,46 @@ export class CartService {
 
   /**
    * Get or create a cart for a user or anonymous session.
+   * Strictly enforces cart ownership isolation:
+   * - Guest sessions can only access anonymous carts (userId === null)
+   * - Authenticated users can only access carts matching their own userId
    */
   async getOrCreateCart(userId?: string, cartId?: string): Promise<string> {
-    if (cartId) {
-      const existing = await this.prisma.cart.findUnique({ where: { id: cartId } });
-      if (existing) return existing.id;
-    }
-
     if (userId) {
-      // Find the user's most recent active cart
+      // Authenticated user
+      if (cartId) {
+        const existing = await this.prisma.cart.findUnique({ where: { id: cartId } });
+        if (existing && existing.userId === userId) {
+          return existing.id;
+        }
+      }
+
+      // Find user's existing active cart
       const userCart = await this.prisma.cart.findFirst({
         where: { userId },
         orderBy: { updatedAt: 'desc' },
       });
       if (userCart) return userCart.id;
+
+      // Create new cart for authenticated user
+      const cart = await this.prisma.cart.create({
+        data: { userId },
+      });
+      return cart.id;
     }
 
-    // Create new cart
+    // Guest / Anonymous session
+    if (cartId) {
+      const existing = await this.prisma.cart.findUnique({ where: { id: cartId } });
+      // Reject IDOR: guests cannot claim carts belonging to registered users
+      if (existing && existing.userId === null) {
+        return existing.id;
+      }
+    }
+
+    // Create new anonymous guest cart
     const cart = await this.prisma.cart.create({
-      data: { userId: userId ?? null },
+      data: { userId: null },
     });
     return cart.id;
   }
@@ -244,20 +265,28 @@ export class CartService {
    * Merge a guest cart into an authenticated user's cart after login.
    * Items in the guest cart are upserted into the user's cart.
    * Guest cart is then deleted.
+   *
+   * Security guards:
+   * - Never merge a cart into itself (guestCartId === userCartId)
+   * - Only merge carts that actually belong to guests (guestCart.userId === null)
    */
   async mergeGuestCart(guestCartId: string, userId: string): Promise<string> {
+    const userCartId = await this.getOrCreateCart(userId);
+
+    // Guard: Prevent self-merge session fixation/deletion
+    if (guestCartId === userCartId) {
+      return userCartId;
+    }
+
     const guestCart = await this.prisma.cart.findUnique({
       where: { id: guestCartId },
       include: { items: true },
     });
 
-    if (!guestCart || guestCart.items.length === 0) {
-      const userCartId = await this.getOrCreateCart(userId);
+    // Guard: Cart must exist, must be an anonymous guest cart (userId === null), and have items
+    if (!guestCart || guestCart.userId !== null || guestCart.items.length === 0) {
       return userCartId;
     }
-
-    // Get or create the user's cart
-    const userCartId = await this.getOrCreateCart(userId);
 
     await this.prisma.$transaction(async (tx) => {
       for (const guestItem of guestCart.items) {

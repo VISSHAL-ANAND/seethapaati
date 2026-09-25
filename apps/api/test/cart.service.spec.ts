@@ -237,20 +237,73 @@ describe('CartService - Server-Authoritative Cart & Guest Merging', () => {
     });
   });
 
+  describe('getOrCreateCart isolation', () => {
+    it('prevents guest from claiming a registered user cart (IDOR prevention)', async () => {
+      const userCartId = 'c-user-123';
+      const newGuestCartId = 'c-guest-new';
+
+      // Attacker supplies a cartId that belongs to a registered user
+      mockPrisma.cart.findUnique.mockResolvedValue({
+        id: userCartId,
+        userId: 'u-legit-user',
+      });
+      mockPrisma.cart.create.mockResolvedValue({
+        id: newGuestCartId,
+        userId: null,
+      });
+
+      // Guest calls getOrCreateCart with user's cartId
+      const result = await cartService.getOrCreateCart(undefined, userCartId);
+
+      // Must NOT return the user's cart; must create a new guest cart
+      expect(result).toBe(newGuestCartId);
+      expect(mockPrisma.cart.create).toHaveBeenCalledWith({
+        data: { userId: null },
+      });
+    });
+
+    it('allows guest to reuse an anonymous cart where userId is null', async () => {
+      const guestCartId = 'c-guest-123';
+      mockPrisma.cart.findUnique.mockResolvedValue({
+        id: guestCartId,
+        userId: null,
+      });
+
+      const result = await cartService.getOrCreateCart(undefined, guestCartId);
+
+      expect(result).toBe(guestCartId);
+      expect(mockPrisma.cart.create).not.toHaveBeenCalled();
+    });
+
+    it('allows authenticated user to reuse cart matching their userId', async () => {
+      const userCartId = 'c-user-123';
+      mockPrisma.cart.findUnique.mockResolvedValue({
+        id: userCartId,
+        userId,
+      });
+
+      const result = await cartService.getOrCreateCart(userId, userCartId);
+
+      expect(result).toBe(userCartId);
+      expect(mockPrisma.cart.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('mergeGuestCart', () => {
     it('merges guest cart items into authenticated user cart and deletes guest cart', async () => {
       const guestCartId = 'g0000000-0000-0000-0000-000000000001';
       const userCartId = 'u0000000-0000-0000-0000-000000000002';
 
+      // User already has an active cart
+      mockPrisma.cart.findFirst.mockResolvedValue({ id: userCartId });
+
       mockPrisma.cart.findUnique.mockResolvedValue({
         id: guestCartId,
+        userId: null, // Legitimate anonymous guest cart
         items: [
           { variantId, quantity: 2 },
         ],
       });
-
-      // User already has an active cart
-      mockPrisma.cart.findFirst.mockResolvedValue({ id: userCartId });
 
       // User cart already has 3 of this item
       mockPrisma.cartItem.findFirst.mockResolvedValue({
@@ -271,6 +324,36 @@ describe('CartService - Server-Authoritative Cart & Guest Merging', () => {
       expect(mockPrisma.cart.delete).toHaveBeenCalledWith({
         where: { id: guestCartId },
       });
+    });
+
+    it('prevents self-merge session fixation and cart deletion when guestCartId equals userCartId', async () => {
+      const userCartId = 'u0000000-0000-0000-0000-000000000002';
+      mockPrisma.cart.findFirst.mockResolvedValue({ id: userCartId });
+
+      const resultCartId = await cartService.mergeGuestCart(userCartId, userId);
+
+      expect(resultCartId).toBe(userCartId);
+      expect(mockPrisma.cart.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.cart.delete).not.toHaveBeenCalled();
+    });
+
+    it('rejects merging a cart that belongs to another registered user', async () => {
+      const victimCartId = 'victim-cart-999';
+      const userCartId = 'u0000000-0000-0000-0000-000000000002';
+      mockPrisma.cart.findFirst.mockResolvedValue({ id: userCartId });
+
+      mockPrisma.cart.findUnique.mockResolvedValue({
+        id: victimCartId,
+        userId: 'other-user-id', // Belongs to another user!
+        items: [{ variantId, quantity: 2 }],
+      });
+
+      const resultCartId = await cartService.mergeGuestCart(victimCartId, userId);
+
+      expect(resultCartId).toBe(userCartId);
+      expect(mockPrisma.cartItem.update).not.toHaveBeenCalled();
+      expect(mockPrisma.cartItem.create).not.toHaveBeenCalled();
+      expect(mockPrisma.cart.delete).not.toHaveBeenCalled();
     });
   });
 });
