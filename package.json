@@ -1,30 +1,24 @@
 {
-  "name": "ecom",
+  "name": "seethapaati-monorepo",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "lucide-react": "^1.47.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.4"
+    "build:contracts": "npm --workspace=@seethapaati/contracts run build",
+    "build:api": "npm --workspace=@seethapaati/api run build",
+    "build:web": "npm --workspace=@seethapaati/web run build",
+    "build": "npm run build:contracts && npm run build:api && npm run build:web",
+    "typecheck": "npm --workspace=@seethapaati/contracts run typecheck && npm --workspace=@seethapaati/api run typecheck && npm --workspace=@seethapaati/web run typecheck",
+    "test": "npm --workspace=@seethapaati/api run test",
+    "lint": "npm --workspace=@seethapaati/api run lint && npm --workspace=@seethapaati/web run lint",
+    "dev:api": "npm --workspace=@seethapaati/api run start:dev",
+    "dev:web": "npm --workspace=@seethapaati/web run dev",
+    "dev": "npm run build:contracts && npm --workspace=@seethapaati/api run start:dev"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.3",
-    "@tailwindcss/vite": "^4.3.3",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^6.1.1",
-    "autoprefixer": "^10.6.1",
-    "oxlint": "^1.81.0",
-    "postcss": "^8.5.28",
-    "tailwindcss": "^4.3.3",
-    "vite": "^8.3.0"
+    "typescript": "^5.8.2"
   }
 }
