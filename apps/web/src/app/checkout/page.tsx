@@ -24,6 +24,7 @@ export default function CheckoutPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
 
   useEffect(() => {
     Promise.all([fetchApi<CartResponse>('/cart'), fetchApi<UserProfile>('/users/me'), fetchApi<Address[]>('/users/me/addresses')])
@@ -34,7 +35,7 @@ export default function CheckoutPage() {
         else setAddress(a=>({...a,fullName:nextProfile.fullName,phone:nextProfile.phone??''}));
       })
       .catch(err => {
-        if (err instanceof ApiClientError) router.replace('/account/login?next=/checkout');
+        if (err instanceof ApiClientError && ['UNAUTHORIZED','USER_NOT_FOUND'].includes(err.code)) router.replace('/account/login?next=/checkout');
         else setError(err instanceof Error ? err.message : 'Unable to load checkout');
       }).finally(()=>setLoading(false));
   }, [router]);
@@ -42,8 +43,13 @@ export default function CheckoutPage() {
   function setField<K extends keyof Address>(key:K,value:Address[K]) { setAddress(a=>({...a,[key]:value})); }
 
   async function saveAddress() {
-    const saved = await fetchApi<Address>('/users/me/addresses',{method:'POST',body:JSON.stringify({...address,isDefault:addresses.length===0})});
-    setAddresses(a=>[...a,saved]); setAddress(saved);
+    setSavingAddress(true);
+    try {
+      const saved = await fetchApi<Address>('/users/me/addresses',{method:'POST',body:JSON.stringify({...address,isDefault:addresses.length===0})});
+      setAddresses(a=>[...a,saved]); setAddress(saved);
+    } finally {
+      setSavingAddress(false);
+    }
   }
 
   async function submit(event:FormEvent) {
@@ -88,7 +94,7 @@ export default function CheckoutPage() {
             {([['fullName','Full name'],['phone','Phone'],['addressLine1','Address line 1'],['addressLine2','Address line 2'],['city','City'],['state','State'],['postalCode','Postal code']] as const).map(([key,label])=><label key={key} className="block text-xs uppercase tracking-[0.14em]">{label}<input required={key!=='addressLine2'} value={String(address[key]??'')} onChange={e=>setField(key,e.target.value)} className="mt-2 w-full border-b border-[#181513]/25 bg-transparent py-3 outline-none"/></label>)}
             <label className="block text-xs uppercase tracking-[0.14em]">GST state code<input required value={stateCode} maxLength={2} inputMode="numeric" pattern="[0-9]{2}" placeholder="e.g. 33" onChange={e=>setStateCode(e.target.value.replace(/\D/g,'').slice(0,2))} className="mt-2 w-full border-b border-[#181513]/25 bg-transparent py-3 outline-none"/></label>
           </div>
-          <button type="button" onClick={()=>saveAddress().catch(e=>setError(e instanceof Error?e.message:'Unable to save address'))} className="text-xs underline underline-offset-4">Save this address to my account</button>
+          <button type="button" disabled={savingAddress} onClick={()=>saveAddress().catch(e=>setError(e instanceof Error?e.message:'Unable to save address'))} className="text-xs underline underline-offset-4 disabled:opacity-50">{savingAddress ? 'Saving address…' : 'Save this address to my account'}</button>
           <div className="border-t border-[#E3DFD7] pt-7"><label className="block text-xs uppercase tracking-[0.14em]">Coupon code (optional)<input value={coupon} onChange={e=>setCoupon(e.target.value)} className="mt-2 w-full max-w-xs border-b border-[#181513]/25 bg-transparent py-3 outline-none"/></label></div>
           {error && <p className="text-sm text-red-700">{error}</p>}
         </section>
