@@ -92,7 +92,7 @@ export class CartService {
           include: {
             variant: {
               include: {
-                product: { select: { name: true, hsnCode: true } },
+                product: { select: { name: true } },
                 inventory: { select: { quantityAvailable: true, quantityReserved: true } },
               },
             },
@@ -124,7 +124,22 @@ export class CartService {
     }
 
     // Build pricing inputs from DB-fetched data (never client)
-    const pricingInputs: CartItemInput[] = cart.items
+    const pricingItems = (cart as Prisma.CartGetPayload<{
+      include: {
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: { select: { name: true } },
+                inventory: { select: { quantityAvailable: true, quantityReserved: true } },
+              },
+            },
+          },
+        },
+      },
+    }>).items;
+
+    const pricingInputs: CartItemInput[] = pricingItems
       .filter((item) => item.variant.status === 'ACTIVE')
       .map((item) => ({
         variantId: item.variantId,
@@ -137,13 +152,13 @@ export class CartService {
       }));
 
     const taxRatesByVariant = new Map<string, number>();
-    for (const item of cart.items.filter((item) => item.variant.status === 'ACTIVE')) {
-      const hsnCode = item.variant.product.hsnCode;
+    for (const item of pricingItems.filter((item) => item.variant.status === 'ACTIVE')) {
+      const hsnCode = item.variant.hsnCode;
       if (!hsnCode) {
         throw new BadRequestException({ error: 'TAX_CONFIGURATION_MISSING', message: 'Active cart items require an HSN code.' });
       }
       const taxRate = await this.taxConfig.getRate(hsnCode);
-      taxRatesByVariant.set(item.variantId, Number(taxRate.ratePercent));
+      taxRatesByVariant.set(item.variantId, Number(taxRate.taxRatePercent));
     }
 
     const { lineItems, breakdown } = this.pricing.calculate(
