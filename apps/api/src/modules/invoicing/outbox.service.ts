@@ -78,7 +78,7 @@ export class OutboxService {
                payload, retry_count, max_retries
         FROM outbox_events
         WHERE
-          AND ${eventTypes?.length ? Prisma.sql`event_type IN (${Prisma.join(eventTypes)})` : Prisma.sql`TRUE`}
+          ${eventTypes?.length ? Prisma.sql`event_type IN (${Prisma.join(eventTypes)})` : Prisma.sql`TRUE`}
           AND ((status = 'PENDING' AND (next_retry_at IS NULL OR next_retry_at <= NOW()))
           OR (status = 'PROCESSING' AND leased_until < NOW()))
         ORDER BY created_at ASC
