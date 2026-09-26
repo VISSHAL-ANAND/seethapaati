@@ -25,8 +25,8 @@ export class ShippingService {
 
   async addEvent(shipmentId:string,status:ShipmentStatus,location?:string,description?:string) {
     return this.prisma.$transaction(async tx=>{
-      const [s] = await tx.$queryRaw<Array<{id:string;order_id:string;status:ShipmentStatus;carrier:string;tracking_number:string|null;tracking_url:string|null;dispatched_at:Date|null;delivered_at:Date|null}>>`
-        SELECT id, order_id, status, carrier, tracking_number, tracking_url, dispatched_at, delivered_at
+      const [s] = await tx.$queryRaw<Array<{id:string;orderId:string;status:ShipmentStatus;carrier:string;trackingNumber:string|null;trackingUrl:string|null;dispatchedAt:Date|null;deliveredAt:Date|null}>>`
+        SELECT id, order_id AS "orderId", status, carrier, tracking_number AS "trackingNumber", tracking_url AS "trackingUrl", dispatched_at AS "dispatchedAt", delivered_at AS "deliveredAt"
         FROM shipments WHERE id=${shipmentId} FOR UPDATE
       `;
       if(!s) throw new NotFoundException({error:'SHIPMENT_NOT_FOUND'});
