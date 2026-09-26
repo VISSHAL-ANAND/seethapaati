@@ -363,6 +363,7 @@ model Order {
   shipment      Shipment?
   returns       Return[]
   refunds       Refund[]
+  notifications Notification[]
 
   @@index([orderNumber])
   @@index([userId])
