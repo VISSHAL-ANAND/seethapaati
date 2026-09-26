@@ -52,6 +52,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<RoleName, PermissionName[]> = {
     PermissionName.INVENTORY_UPDATE,
     PermissionName.ORDERS_READ_ALL,
     PermissionName.ORDERS_UPDATE,
+    PermissionName.SHIPMENTS_MANAGE,
+    PermissionName.RETURNS_MANAGE,
   ],
   [RoleName.MANAGER]: [
     PermissionName.PRODUCTS_READ,
