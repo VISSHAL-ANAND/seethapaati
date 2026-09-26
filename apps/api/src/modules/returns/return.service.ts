@@ -8,6 +8,7 @@ const transitions:Record<ReturnStatus,ReturnStatus[]>={REQUESTED:['APPROVED','RE
 export class ReturnService {
  constructor(private readonly prisma:PrismaService){}
  async request(orderId:string,userId:string,reason:ReturnReason,items:Array<{orderItemId:string;quantity:number}>,notes?:string,evidenceUrl?:string){
+  if (!items.length) throw new BadRequestException({error:'RETURN_ITEMS_REQUIRED'});
   return this.prisma.$transaction(async tx=>{
    const order=await tx.order.findUnique({where:{id:orderId},include:{items:true}});
    if(!order||order.userId!==userId) throw new NotFoundException({error:'ORDER_NOT_FOUND'});
