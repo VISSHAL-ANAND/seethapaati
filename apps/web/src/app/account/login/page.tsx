@@ -5,10 +5,15 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { fetchApi } from '../../../lib/api-client';
 
+function getSafeNext(value: string | null, fallback: string) {
+  if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\\\')) return fallback;
+  return value;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const search = useSearchParams();
-  const next = search.get('next') || '/account/orders';
+  const next = getSafeNext(search.get('next'), '/account/orders');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
