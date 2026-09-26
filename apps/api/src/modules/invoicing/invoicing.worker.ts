@@ -29,9 +29,9 @@ export class InvoicingWorker implements OnModuleDestroy {
             const orderId = payload.orderId ?? event.aggregateId;
             await this.invoices.generateInvoice(orderId);
           }
-          await this.outbox.complete(event.id);
+          await this.outbox.complete(event.id, event.leasedBy);
         } catch (error) {
-          await this.outbox.fail(event.id, error);
+          await this.outbox.fail(event.id, error, event.leasedBy);
         }
       }
     } catch (error) {
