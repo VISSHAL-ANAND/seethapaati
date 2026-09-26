@@ -13,6 +13,7 @@ describe('WebhookService - Authoritative Payment Confirmation & Settlement', () 
   let inventoryService: any;
   let paymentsService: any;
   let outboxService: any;
+  let notificationService: any;
 
   beforeEach(() => {
     prisma = {
@@ -64,6 +65,9 @@ describe('WebhookService - Authoritative Payment Confirmation & Settlement', () 
     outboxService = {
       enqueueInvoiceGeneration: jest.fn().mockResolvedValue(undefined),
     };
+    notificationService = {
+      enqueueOrderStatus: jest.fn().mockResolvedValue(undefined),
+    };
 
     service = new WebhookService(
       prisma as unknown as PrismaService,
@@ -71,6 +75,7 @@ describe('WebhookService - Authoritative Payment Confirmation & Settlement', () 
       inventoryService as unknown as InventoryService,
       paymentsService as unknown as PaymentsService,
       outboxService,
+      notificationService,
     );
   });
 
