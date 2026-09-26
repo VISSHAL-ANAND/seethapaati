@@ -69,7 +69,21 @@ export class InvoiceService {
           message: `HSN code missing for order item ${item.skuSnapshot}.`,
         });
       }
-      const rate = await this.taxConfig.getRate(hsnCode, tx);
+      const snapshotRate = item.unitTaxRatePercent;
+      if (snapshotRate === null || snapshotRate === undefined || !Number.isFinite(snapshotRate) || snapshotRate < 0) {
+        throw new UnprocessableEntityException({
+          error: 'TAX_CONFIGURATION_MISSING',
+          message: `Tax rate snapshot missing for order item ${item.skuSnapshot}.`,
+        });
+      }
+      const configuredRate = await this.taxConfig.getRate(hsnCode, tx);
+      if (configuredRate.taxRatePercent !== snapshotRate) {
+        throw new UnprocessableEntityException({
+          error: 'TAX_CONFIGURATION_MISMATCH',
+          message: `Current tax configuration differs from the paid order snapshot for ${item.skuSnapshot}.`,
+        });
+      }
+      const rate = { taxRatePercent: snapshotRate };
       const taxableValueCents = (item.unitPriceCents * item.quantity) - itemDiscounts[i];
       const tax = this.taxConfig.calculateTax(taxableValueCents, rate.taxRatePercent, intraState);
       invoiceItems.push({
