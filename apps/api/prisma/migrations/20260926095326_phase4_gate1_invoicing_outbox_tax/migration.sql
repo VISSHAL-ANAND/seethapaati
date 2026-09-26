@@ -7,6 +7,9 @@ CREATE TYPE "OutboxStatus" AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILE
 -- AlterTable
 ALTER TABLE "product_variants" ADD COLUMN     "hsn_code" TEXT;
 
+ALTER TABLE "order_items" ADD COLUMN "hsn_code_snapshot" TEXT;
+ALTER TABLE "order_items" ADD COLUMN "unit_tax_rate_percent" DOUBLE PRECISION;
+
 -- CreateTable
 CREATE TABLE "tax_rates" (
     "id" TEXT NOT NULL,
