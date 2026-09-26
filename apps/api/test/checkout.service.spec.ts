@@ -91,7 +91,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
     };
 
     taxConfig = {
-      getRate: jest.fn().mockResolvedValue({ ratePercent: 5, hsnCode: '0910' }),
+      getRate: jest.fn().mockResolvedValue({ taxRatePercent: 5, hsnCode: '0910' }),
     };
 
     razorpayAdapter = {
@@ -171,6 +171,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             variantId: 'var_1',
             quantity: 2,
             variant: {
+              hsnCode: '0910',
               sku: 'PEPPER-100G',
               packType: 'Pouch',
               weightGrams: 100,
@@ -374,6 +375,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             variantId: 'var_1',
             quantity: 2,
             variant: {
+              hsnCode: '0910',
               sku: 'PEPPER-100G',
               packType: 'Pouch',
               weightGrams: 100,
@@ -457,6 +459,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             variantId: 'var_1',
             quantity: 1,
             variant: {
+              hsnCode: '0910',
               sku: 'PEPPER-100G',
               packType: 'Pouch',
               weightGrams: 100,
@@ -508,6 +511,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             variantId: 'var_1',
             quantity: 1,
             variant: {
+              hsnCode: '0910',
               sku: 'ITEM-1',
               packType: 'Pouch',
               weightGrams: 100,
@@ -520,6 +524,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             variantId: 'var_2',
             quantity: 1,
             variant: {
+              hsnCode: '0910',
               sku: 'ITEM-2',
               packType: 'Pouch',
               weightGrams: 100,
