@@ -95,7 +95,7 @@ export class PricingService {
     if (!taxRatesByVariant || taxRatesByVariant.size !== lineItems.length) {
       throw new UnprocessableEntityException({
         error: 'TAX_CONFIGURATION_MISSING',
-        message: 'Authoritative HSN tax configuration is required for every checkout item.',
+        message: 'TAX_CONFIGURATION_MISSING: Authoritative HSN tax configuration is required for every checkout item.',
       });
     }
     const taxCents = this.calculateConfiguredTax(lineItems, couponDiscountCents, taxRatesByVariant);
