@@ -67,12 +67,7 @@ export default function AdminOperationsPage() {
     try {
       await fetchApi('/orders/' + selected.id + '/status', {
         method: 'PATCH',
-        body: JSON.stringify({
-          status,
-          ...(status === 'INSPECTED'
-            ? { inspection: ret.items.map((item) => ({ returnItemId: item.id, condition: inspection[item.id] })) }
-            : {}),
-        }),
+        body: JSON.stringify({ status, ...(status === 'INSPECTED' ? { inspection: ret.items.map((item) => ({ returnItemId: item.id, condition: inspection[item.id] })) } : {}) }),
       });
       setMessage('Order status updated.');
       await load();
