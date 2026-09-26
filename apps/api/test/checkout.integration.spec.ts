@@ -62,6 +62,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
     inventoryService = new InventoryService(prisma, configService);
     pricingService = new PricingService();
     taxConfig = new TaxConfigurationService(prisma, configService);
+    await prisma.taxRate.upsert({ where: { hsnCode: '0910' }, update: { taxRatePercent: 5, isActive: true }, create: { id: `test-tax-0910-${testSuffix}`, hsnCode: '0910', description: 'Test tax rate', taxRatePercent: 5, isActive: true } });
     cartService = new CartService(prisma, pricingService, taxConfig);
     orderNumberService = new OrderNumberService(prisma);
 
