@@ -42,7 +42,7 @@ export class OutboxService {
           eventType: input.eventType,
           aggregateType: input.aggregateType,
           aggregateId: input.aggregateId,
-          payload: input.payload,
+          payload: input.payload as Prisma.InputJsonValue,
           maxRetries: input.maxRetries ?? 5,
           status: OutboxStatus.PENDING,
         },
