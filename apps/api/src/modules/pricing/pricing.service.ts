@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { PricingBreakdown, PricingLineItem } from '@seethapaati/contracts';
 
 /**
@@ -16,8 +16,7 @@ import { PricingBreakdown, PricingLineItem } from '@seethapaati/contracts';
  * Client never supplies prices. This service is the single source of truth.
  */
 
-// Business constants — could be moved to DB config table in Phase 5
-const GST_RATE = 0.05; // 5% GST on food items
+// Tax is intentionally not hardcoded. Checkout must provide authoritative HSN tax configuration.
 const FREE_SHIPPING_THRESHOLD_CENTS = 50000; // ₹500 = free shipping
 const STANDARD_SHIPPING_CENTS = 5000; // ₹50 flat shipping
 const MAX_QUANTITY_PER_VARIANT = 10;
@@ -92,11 +91,14 @@ export class PricingService {
 
     const afterDiscount = subtotalCents - couponDiscountCents;
 
-    // 4. Tax is normally supplied from the authoritative HSN configuration.
-    // Legacy default remains only for callers that do not provide tax configuration.
-    const taxCents = taxRatesByVariant && taxRatesByVariant.size > 0
-      ? this.calculateConfiguredTax(lineItems, couponDiscountCents, taxRatesByVariant)
-      : Math.round(afterDiscount * GST_RATE);
+    // 4. Tax is fail-closed. A checkout without authoritative HSN configuration is invalid.
+    if (!taxRatesByVariant || taxRatesByVariant.size !== lineItems.length) {
+      throw new UnprocessableEntityException({
+        error: 'TAX_CONFIGURATION_MISSING',
+        message: 'Authoritative HSN tax configuration is required for every checkout item.',
+      });
+    }
+    const taxCents = this.calculateConfiguredTax(lineItems, couponDiscountCents, taxRatesByVariant);
 
     // 5. Shipping
     const shippingCents = afterDiscount >= FREE_SHIPPING_THRESHOLD_CENTS ? 0 : STANDARD_SHIPPING_CENTS;
@@ -130,7 +132,7 @@ export class PricingService {
     return lineItems.reduce((sum, li, i) => {
       const taxable = li.lineTotalCents - allocations[i];
       const rate = rates.get(li.variantId);
-      if (rate === undefined) throw new Error('TAX_CONFIGURATION_MISSING');
+      if (rate === undefined) throw new UnprocessableEntityException({ error: 'TAX_CONFIGURATION_MISSING', message: `Tax configuration missing for variant ${li.variantId}.` });
       return sum + Math.round((taxable * rate) / 100);
     }, 0);
   }
