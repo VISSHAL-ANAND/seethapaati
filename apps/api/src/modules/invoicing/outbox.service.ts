@@ -103,23 +103,23 @@ export class OutboxService {
     });
   }
 
-  async complete(id: string, leasedBy?: string) {
+  async complete(id: string, leasedBy: string) {
     const result = await this.prisma.outboxEvent.updateMany({
-      where: { id, status: OutboxStatus.PROCESSING, ...(leasedBy ? { leasedBy } : {}) },
+      where: { id, status: OutboxStatus.PROCESSING, { leasedBy } },
       data: { status: OutboxStatus.COMPLETED, completedAt: new Date(), leasedUntil: null, leasedBy: null },
     });
     return result.count === 1;
   }
 
-  async fail(id: string, error: unknown, leasedBy?: string) {
+  async fail(id: string, error: unknown, leasedBy: string) {
     const message = error instanceof Error ? error.message : String(error);
     const current = await this.prisma.outboxEvent.findFirst({ where: { id, status: OutboxStatus.PROCESSING, ...(leasedBy ? { leasedBy } : {}) } });
     if (!current) return false;
     const retryCount = current.retryCount + 1;
     const terminal = retryCount >= current.maxRetries;
     const backoffSeconds = Math.min(300, Math.max(5, 2 ** Math.min(retryCount, 8)));
-    await this.prisma.outboxEvent.update({
-      where: { id },
+    const updated = await this.prisma.outboxEvent.updateMany({
+      where: { id, status: OutboxStatus.PROCESSING, leasedBy },
       data: {
         status: terminal ? OutboxStatus.FAILED : OutboxStatus.PENDING,
         retryCount,
@@ -129,6 +129,7 @@ export class OutboxService {
         lastError: message.slice(0, 2000),
       },
     });
+    if (updated.count !== 1) return false;
     this.logger.error(`Outbox event ${id} failed (attempt ${retryCount}): ${message}`);
     return true;
   }
