@@ -67,7 +67,7 @@ export default function AdminOperationsPage() {
     try {
       await fetchApi('/orders/' + selected.id + '/status', {
         method: 'PATCH',
-        body: JSON.stringify({ status, ...(status === 'INSPECTED' ? { inspection: ret.items.map((item) => ({ returnItemId: item.id, condition: inspection[item.id] })) } : {}) }),
+        body: JSON.stringify({ status }),
       });
       setMessage('Order status updated.');
       await load();
@@ -109,7 +109,12 @@ export default function AdminOperationsPage() {
     try {
       await fetchApi('/admin/returns/' + ret.id + '/status', {
         method: 'PATCH',
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          ...(status === 'INSPECTED'
+            ? { inspection: ret.items.map((item) => ({ returnItemId: item.id, condition: inspection[item.id] })) }
+            : {}),
+        }),
       });
       setMessage(ret.returnNumber + ' updated.');
       await load();
