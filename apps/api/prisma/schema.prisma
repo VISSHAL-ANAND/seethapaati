@@ -34,6 +34,7 @@ model User {
   wishlists       Wishlist[]
   orders          Order[]
   auditLogs       AuditLog[]
+  returns         Return[]
 
   @@map("users")
 }
@@ -357,6 +358,9 @@ model Order {
   statusHistory OrderStatusHistory[]
   payments      Payment[]
   invoice       Invoice?
+  shipment      Shipment?
+  returns       Return[]
+  refunds       Refund[]
 
   @@index([orderNumber])
   @@index([userId])
@@ -381,6 +385,7 @@ model OrderItem {
   createdAt          DateTime @default(now()) @map("created_at")
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  returnItems ReturnItem[]
 
   @@index([orderId])
   @@map("order_items")
@@ -434,6 +439,7 @@ model Payment {
 
   order        Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
   transactions PaymentTransaction[]
+  refunds       Refund[]
 
   @@index([orderId])
   @@index([gatewayOrderId])
@@ -634,3 +640,100 @@ model OutboxEvent {
   @@map("outbox_events")
 }
 
+
+
+// -------------------------------------------------------------
+// PHASE 4: FULFILLMENT, RETURNS & REFUNDS
+// -------------------------------------------------------------
+
+enum ShipmentStatus { CREATED AWB_ASSIGNED SHIPPED OUT_FOR_DELIVERY DELIVERED CANCELLED }
+enum ReturnStatus { REQUESTED APPROVED PICKED_UP RECEIVED INSPECTED REFUND_ELIGIBLE COMPLETED REJECTED CANCELLED }
+enum ReturnReason { DAMAGED WRONG_ITEM QUALITY_ISSUE OTHER }
+enum RefundStatus { PENDING PROCESSED FAILED }
+enum RefundReason { RETURN REFUND_REQUIRED_OTHER }
+enum InvoiceStatusDummy { UNUSED }
+
+model Shipment {
+  id String @id @default(uuid())
+  orderId String @unique @map("order_id")
+  carrier String
+  trackingNumber String? @unique @map("tracking_number")
+  trackingUrl String? @map("tracking_url")
+  status ShipmentStatus @default(CREATED)
+  shippingCents Int @default(0) @map("shipping_cents")
+  estimatedDays Int? @map("estimated_days")
+  dispatchedAt DateTime? @map("dispatched_at")
+  deliveredAt DateTime? @map("delivered_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  trackingEvents ShipmentTrackingEvent[]
+  @@index([status])
+  @@map("shipments")
+}
+model ShipmentTrackingEvent {
+  id String @id @default(uuid())
+  shipmentId String @map("shipment_id")
+  status ShipmentStatus
+  location String?
+  description String?
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  @@index([shipmentId, occurredAt])
+  @@map("shipment_tracking_events")
+}
+model Return {
+  id String @id @default(uuid())
+  returnNumber String @unique @map("return_number")
+  orderId String @map("order_id")
+  userId String @map("user_id")
+  status ReturnStatus @default(REQUESTED)
+  reason ReturnReason
+  notes String?
+  evidenceUrl String? @map("evidence_url")
+  staffNotes String? @map("staff_notes")
+  requestedAt DateTime @default(now()) @map("requested_at")
+  resolvedAt DateTime? @map("resolved_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items ReturnItem[]
+  refunds Refund[]
+  @@index([orderId])
+  @@index([userId, status])
+  @@map("returns")
+}
+model ReturnItem {
+  id String @id @default(uuid())
+  returnId String @map("return_id")
+  orderItemId String @map("order_item_id")
+  quantity Int
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  @@unique([returnId, orderItemId])
+  @@index([orderItemId])
+  @@map("return_items")
+}
+model Refund {
+  id String @id @default(uuid())
+  orderId String @map("order_id")
+  paymentId String @map("payment_id")
+  returnId String? @map("return_id")
+  gatewayRefundId String? @unique @map("gateway_refund_id")
+  idempotencyKey String @unique @map("idempotency_key")
+  amountCents Int @map("amount_cents")
+  currency String @default("INR")
+  status RefundStatus @default(PENDING)
+  reason RefundReason
+  notes String?
+  processedAt DateTime? @map("processed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  return Return? @relation(fields: [returnId], references: [id], onDelete: SetNull)
+  @@index([orderId, status])
+  @@index([paymentId])
+  @@map("refunds")
+}
