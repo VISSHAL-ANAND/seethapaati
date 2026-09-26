@@ -456,6 +456,7 @@ model PaymentTransaction {
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@index([paymentId])
+  @@index([status, processingLeaseUntil])
   @@map("payment_transactions")
 }
 
@@ -467,6 +468,8 @@ model PaymentWebhookEvent {
   payload     Json
   processed   Boolean  @default(false)
   processedAt DateTime? @map("processed_at")
+  processingLeaseUntil DateTime? @map("processing_lease_until")
+  processingToken String? @map("processing_token")
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([eventId])
