@@ -20,6 +20,7 @@ import {
   VerifyPaymentResponse,
 } from '@seethapaati/contracts';
 import { DiscountType, OrderStatus, PaymentGateway, PaymentStatus } from '@prisma/client';
+import { TaxConfigurationService } from '../invoicing/tax-configuration.service';
 
 const MAX_DISTINCT_VARIANTS_PER_CHECKOUT = 20;
 
@@ -49,6 +50,7 @@ export class CheckoutService {
     private inventoryService: InventoryService,
     private orderNumberService: OrderNumberService,
     private razorpayAdapter: RazorpayAdapter,
+    private taxConfig: TaxConfigurationService,
   ) {}
 
   /**
@@ -267,7 +269,16 @@ export class CheckoutService {
         couponId = coupon.id;
       }
 
-      // 3c. Server-Authoritative Price Calculation
+      // 3c. Validate HSN/tax configuration before creating the paid-order snapshot
+      const taxRates = new Map<string, number>();
+      for (const item of cart.items) {
+        const hsnCode = item.variant.hsnCode;
+        if (!hsnCode) throw new BadRequestException({ error: 'TAX_CONFIGURATION_MISSING', message: `HSN code missing for ${item.variant.sku}` });
+        const rate = await this.taxConfig.getRate(hsnCode, tx);
+        taxRates.set(hsnCode, rate.taxRatePercent);
+      }
+
+      // 3d. Server-Authoritative Price Calculation
       const pricingInputs: CartItemInput[] = cart.items.map((item) => ({
         variantId: item.variantId,
         productName: item.variant.product.name,
@@ -357,6 +368,8 @@ export class CheckoutService {
         skuSnapshot: li.sku,
         packTypeSnapshot: li.packType,
         weightGramsSnapshot: li.weightGrams,
+        hsnCodeSnapshot: cart.items[i].variant.hsnCode,
+        unitTaxRatePercent: taxRates.get(cart.items[i].variant.hsnCode!) ?? null,
         unitPriceCents: li.unitPriceCents,
         quantity: li.quantity,
         taxCents: itemTaxAllocations[i],
