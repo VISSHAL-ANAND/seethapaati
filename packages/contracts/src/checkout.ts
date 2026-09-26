@@ -9,6 +9,7 @@ export const CreateCheckoutIntentRequestSchema = z.object({
     addressLine2: z.string().optional(),
     city: z.string().min(2),
     state: z.string().min(2),
+    stateCode: z.string().regex(/^\d{2}$/),
     postalCode: z.string().min(4),
     country: z.string().default('IN'),
   }),
