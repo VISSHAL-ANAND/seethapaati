@@ -91,8 +91,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
     };
 
     taxConfig = {
-      getTaxRateForHsn: jest.fn().mockResolvedValue({ ratePercent: 5, hsnCode: '0910' }),
-      getTaxRateMapForHsns: jest.fn().mockResolvedValue(new Map([['0910', 5], ['2103', 12], ['2001', 12], ['2106', 5]])),
+      getRate: jest.fn().mockResolvedValue({ ratePercent: 5, hsnCode: '0910' }),
     };
 
     razorpayAdapter = {
