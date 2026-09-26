@@ -105,7 +105,7 @@ export class OutboxService {
 
   async complete(id: string, leasedBy: string) {
     const result = await this.prisma.outboxEvent.updateMany({
-      where: { id, status: OutboxStatus.PROCESSING, { leasedBy } },
+      where: { id, status: OutboxStatus.PROCESSING, leasedBy },
       data: { status: OutboxStatus.COMPLETED, completedAt: new Date(), leasedUntil: null, leasedBy: null },
     });
     return result.count === 1;
@@ -113,7 +113,7 @@ export class OutboxService {
 
   async fail(id: string, error: unknown, leasedBy: string) {
     const message = error instanceof Error ? error.message : String(error);
-    const current = await this.prisma.outboxEvent.findFirst({ where: { id, status: OutboxStatus.PROCESSING, ...(leasedBy ? { leasedBy } : {}) } });
+    const current = await this.prisma.outboxEvent.findFirst({ where: { id, status: OutboxStatus.PROCESSING, leasedBy } });
     if (!current) return false;
     const retryCount = current.retryCount + 1;
     const terminal = retryCount >= current.maxRetries;
