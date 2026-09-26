@@ -5,5 +5,6 @@ import {ReturnService} from './return.service';
 import {RefundService} from './refund.service';
 import {RefundReconciliationWorker} from './refund-reconciliation.worker';
 import {ReturnsController} from './returns.controller';
-@Module({imports:[PrismaModule,PaymentsModule],controllers:[ReturnsController],providers:[ReturnService,RefundService,RefundReconciliationWorker],exports:[ReturnService,RefundService]})
+import {NotificationsModule} from '../notifications/notifications.module';
+@Module({imports:[PrismaModule,PaymentsModule,NotificationsModule],controllers:[ReturnsController],providers:[ReturnService,RefundService,RefundReconciliationWorker],exports:[ReturnService,RefundService]})
 export class ReturnsModule {}
