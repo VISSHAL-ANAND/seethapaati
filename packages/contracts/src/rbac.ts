@@ -24,6 +24,9 @@ export enum PermissionName {
   ORDERS_READ = 'orders.read',
   ORDERS_READ_ALL = 'orders.read_all',
   ORDERS_UPDATE = 'orders.update',
+  ORDERS_REFUND = 'orders.refund',
+  SHIPMENTS_MANAGE = 'shipments.manage',
+  RETURNS_MANAGE = 'returns.manage',
 
   // Users & Roles
   USERS_READ = 'users.read',
@@ -60,6 +63,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<RoleName, PermissionName[]> = {
     PermissionName.INVENTORY_UPDATE,
     PermissionName.ORDERS_READ_ALL,
     PermissionName.ORDERS_UPDATE,
+    PermissionName.RETURNS_MANAGE,
+    PermissionName.SHIPMENTS_MANAGE,
+    PermissionName.ORDERS_REFUND,
     PermissionName.USERS_READ,
     PermissionName.REPORTS_READ,
   ],
