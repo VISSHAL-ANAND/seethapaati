@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { fetchApi } from '@/lib/api';
+import { fetchApi } from '../../../lib/api-client';
 
 type Notification = {
   id: string;
