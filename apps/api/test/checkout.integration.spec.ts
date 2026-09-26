@@ -8,6 +8,8 @@ import { PaymentsService } from '../src/modules/payments/payments.service';
 import { WebhookService } from '../src/modules/payments/webhook.service';
 import { RazorpayAdapter } from '../src/modules/payments/razorpay.adapter';
 import { OrdersService } from '../src/modules/orders/orders.service';
+import { TaxConfigurationService } from '../src/modules/invoicing/tax-configuration.service';
+import { OutboxService } from '../src/modules/invoicing/outbox.service';
 import { ConfigService } from '@nestjs/config';
 import { DiscountType, OrderStatus } from '@prisma/client';
 import { BadGatewayException, BadRequestException } from '@nestjs/common';
@@ -24,6 +26,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
   let paymentsService: PaymentsService;
   let webhookService: WebhookService;
   let ordersService: OrdersService;
+  let taxConfig: TaxConfigurationService;
 
   const testSuffix = Date.now().toString().slice(-6);
   let userId: string;
@@ -58,6 +61,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
 
     inventoryService = new InventoryService(prisma, configService);
     pricingService = new PricingService();
+    taxConfig = new TaxConfigurationService(prisma);
     cartService = new CartService(prisma, pricingService);
     orderNumberService = new OrderNumberService(prisma);
 
@@ -77,6 +81,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
       inventoryService,
       orderNumberService,
       razorpayAdapter,
+      taxConfig,
     );
 
     webhookService = new WebhookService(
@@ -84,6 +89,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
       razorpayAdapter,
       inventoryService,
       paymentsService,
+      new OutboxService(prisma),
     );
 
     ordersService = new OrdersService(prisma, inventoryService);
@@ -195,6 +201,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
         addressLine1: '12 Temple Lane',
         city: 'Madurai',
         state: 'Tamil Nadu',
+        stateCode: 'TN',
         postalCode: '625001',
         country: 'IN',
       },
@@ -377,6 +384,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
           addressLine1: '45 South St',
           city: 'Madurai',
           state: 'Tamil Nadu',
+        stateCode: 'TN',
           postalCode: '625001',
           country: 'IN',
         },
@@ -427,6 +435,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
         addressLine1: '45 South St',
         city: 'Madurai',
         state: 'Tamil Nadu',
+        stateCode: 'TN',
         postalCode: '625001',
         country: 'IN',
       },
@@ -533,6 +542,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
       addressLine1: '100 Bazar St',
       city: 'Madurai',
       state: 'Tamil Nadu',
+        stateCode: 'TN',
       postalCode: '625001',
       country: 'IN',
     };
@@ -620,6 +630,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
           addressLine1: '12 Temple Lane',
           city: 'Madurai',
           state: 'Tamil Nadu',
+        stateCode: 'TN',
           postalCode: '625001',
           country: 'IN',
         },
@@ -688,6 +699,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
         addressLine1: '12 Temple Lane',
         city: 'Madurai',
         state: 'Tamil Nadu',
+        stateCode: 'TN',
         postalCode: '625001',
         country: 'IN',
       },
