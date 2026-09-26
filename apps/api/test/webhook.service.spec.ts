@@ -23,6 +23,7 @@ describe('WebhookService - Authoritative Payment Confirmation & Settlement', () 
         findUnique: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       payment: {
         findUnique: jest.fn(),
@@ -110,6 +111,10 @@ describe('WebhookService - Authoritative Payment Confirmation & Settlement', () 
       const p2002Error: any = new Error('Unique constraint failed');
       p2002Error.code = 'P2002';
       prisma.paymentWebhookEvent.create.mockRejectedValue(p2002Error);
+      prisma.paymentWebhookEvent.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ eventId: 'evt_concurrent_1', processed: false, processingLeaseUntil: null });
+      prisma.paymentWebhookEvent.updateMany.mockResolvedValue({ count: 0 });
 
       const body = JSON.stringify({
         event: 'payment.captured',
