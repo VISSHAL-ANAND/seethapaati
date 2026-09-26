@@ -12,6 +12,7 @@ export interface ClaimedOutboxEvent {
   payload: unknown;
   retryCount: number;
   maxRetries: number;
+  leasedBy: string;
 }
 
 @Injectable()
@@ -97,6 +98,7 @@ export class OutboxService {
         payload: r.payload,
         retryCount: r.retry_count,
         maxRetries: r.max_retries,
+        leasedBy,
       }));
     });
   }
@@ -109,9 +111,9 @@ export class OutboxService {
     return result.count === 1;
   }
 
-  async fail(id: string, error: unknown) {
+  async fail(id: string, error: unknown, leasedBy?: string) {
     const message = error instanceof Error ? error.message : String(error);
-    const current = await this.prisma.outboxEvent.findUnique({ where: { id } });
+    const current = await this.prisma.outboxEvent.findFirst({ where: { id, status: OutboxStatus.PROCESSING, ...(leasedBy ? { leasedBy } : {}) } });
     if (!current) return false;
     const retryCount = current.retryCount + 1;
     const terminal = retryCount >= current.maxRetries;
