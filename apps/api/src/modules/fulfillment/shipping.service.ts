@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { OrderStatus, Prisma, ShipmentStatus } from '@prisma/client';
+import { OrderStatus, ShipmentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 const transitions: Record<ShipmentStatus, ShipmentStatus[]> = {
@@ -25,7 +25,10 @@ export class ShippingService {
 
   async addEvent(shipmentId:string,status:ShipmentStatus,location?:string,description?:string) {
     return this.prisma.$transaction(async tx=>{
-      const s=await tx.shipment.findUnique({where:{id:shipmentId}});
+      const [s] = await tx.$queryRaw<Array<{id:string;order_id:string;status:ShipmentStatus;carrier:string;tracking_number:string|null;tracking_url:string|null;dispatched_at:Date|null;delivered_at:Date|null}>>`
+        SELECT id, order_id, status, carrier, tracking_number, tracking_url, dispatched_at, delivered_at
+        FROM shipments WHERE id=${shipmentId} FOR UPDATE
+      `;
       if(!s) throw new NotFoundException({error:'SHIPMENT_NOT_FOUND'});
       if(!transitions[s.status].includes(status)) throw new BadRequestException({error:'INVALID_SHIPMENT_TRANSITION'});
       if(status===ShipmentStatus.SHIPPED && (!s.carrier || !s.trackingNumber)) throw new BadRequestException({error:'TRACKING_REQUIRED'});
