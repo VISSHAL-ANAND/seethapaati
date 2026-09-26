@@ -130,7 +130,8 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
     const variant = await prisma.productVariant.create({
       data: {
         productId,
-        sku: `MASALA-CHET-${testSuffix}`,\n        hsnCode: '0910',
+        sku: `MASALA-CHET-${testSuffix}`,
+        hsnCode: '0910',
         priceCents: 15000, // ₹150
         weightGrams: 200,
         packType: 'Glass Jar',
