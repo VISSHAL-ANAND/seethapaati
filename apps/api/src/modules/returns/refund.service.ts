@@ -3,6 +3,7 @@ import { OrderStatus, PaymentStatus, RefundReason, RefundStatus, ReturnStatus } 
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RazorpayAdapter } from '../payments/razorpay.adapter';
+import { NotificationService } from '../notifications/notification.service';
 
 const REFUND_LEASE_MS = 2 * 60 * 1000;
 
@@ -11,6 +12,7 @@ export class RefundService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly razorpay: RazorpayAdapter,
+    private readonly notifications: NotificationService,
   ) {}
 
   async process(
@@ -146,6 +148,7 @@ export class RefundService {
         });
 
         if (updated.count) {
+          await this.notifications.enqueueRefundStatus(record.id, orderId, RefundStatus.PROCESSED, tx);
           if (record.returnId) {
             await tx.return.updateMany({
               where: { id: record.returnId, status: ReturnStatus.REFUND_ELIGIBLE },
