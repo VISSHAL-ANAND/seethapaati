@@ -47,28 +47,23 @@ export class ReturnService {
     for(const item of items){
      const condition=inspectionById.get(item.id)!;
      await tx.returnItem.update({where:{id:item.id},data:{condition}});
-     if(condition===ReturnCondition.SEALED_INTACT){
-      const [inventory]=await tx.$queryRaw<Array<{variant_id:string}>>`
-       SELECT oi.variant_id FROM order_items oi WHERE oi.id=${item.orderItemId} FOR UPDATE
-      `;
-      if(!inventory?.variant_id) throw new BadRequestException({error:'RETURN_INVENTORY_VARIANT_MISSING'});
-      const restocked=await tx.$executeRaw`
-       UPDATE inventory
-       SET quantity_available=quantity_available+${item.quantity},
-           version=version+1,
-           updated_at=NOW()
-       WHERE variant_id=${inventory.variant_id}
-      `;
-      if(restocked!==1) throw new BadRequestException({error:'RETURN_INVENTORY_MISSING'});
-      await tx.inventoryMovement.create({
-       data:{
-        variantId:inventory.variant_id,
-        delta:item.quantity,
-        reason:'RESTOCK_RETURN',
-        referenceId:item.id,
-       }
-      });
-     }
+    }
+   }
+   if(status===ReturnStatus.REFUND_ELIGIBLE){
+    if(items.some(item=>item.condition===null)) throw new BadRequestException({error:'RETURN_INSPECTION_REQUIRED'});
+    for(const item of items){
+     if(item.condition!==ReturnCondition.SEALED_INTACT) continue;
+     const [inventory]=await tx.$queryRaw<Array<{variant_id:string}>>`
+      SELECT oi.variant_id FROM order_items oi WHERE oi.id=${item.orderItemId} FOR UPDATE
+     `;
+     if(!inventory?.variant_id) throw new BadRequestException({error:'RETURN_INVENTORY_VARIANT_MISSING'});
+     const restocked=await tx.$executeRaw`
+      UPDATE inventory
+      SET quantity_available=quantity_available+${item.quantity}, version=version+1, updated_at=NOW()
+      WHERE variant_id=${inventory.variant_id}
+     `;
+     if(restocked!==1) throw new BadRequestException({error:'RETURN_INVENTORY_MISSING'});
+     await tx.inventoryMovement.create({data:{variantId:inventory.variant_id,delta:item.quantity,reason:'RESTOCK_RETURN',referenceId:item.id}});
     }
    }
    return tx.return.update({
