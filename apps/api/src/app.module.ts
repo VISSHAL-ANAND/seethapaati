@@ -20,6 +20,7 @@ import { AuthGuard } from './common/guards/auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
+import { InvoicingModule } from './modules/invoicing/invoicing.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
     PaymentsModule,
     CheckoutModule,
     OrdersModule,
+    InvoicingModule,
   ],
   providers: [
     {
