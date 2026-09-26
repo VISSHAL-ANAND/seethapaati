@@ -1,5 +1,5 @@
 import {BadRequestException,Injectable,NotFoundException} from '@nestjs/common';
-import {Prisma,ReturnReason,ReturnStatus} from '@prisma/client';
+import {Prisma,ReturnCondition,ReturnReason,ReturnStatus} from '@prisma/client';
 import {PrismaService} from '../prisma/prisma.service';
 
 const transitions:Record<ReturnStatus,ReturnStatus[]>={REQUESTED:['APPROVED','REJECTED','CANCELLED'],APPROVED:['PICKED_UP','CANCELLED'],PICKED_UP:['RECEIVED'],RECEIVED:['INSPECTED'],INSPECTED:['REFUND_ELIGIBLE','REJECTED'],REFUND_ELIGIBLE:['COMPLETED'],COMPLETED:[],REJECTED:[],CANCELLED:[]};
@@ -23,21 +23,60 @@ export class ReturnService {
   });
  }
  async listForUser(userId:string,readAll=false){return this.prisma.return.findMany({where:readAll?undefined:{userId},include:{items:true,refunds:true},orderBy:{createdAt:'desc'}})}
- async transition(id:string,status:ReturnStatus,staffNotes?:string){
+ async transition(
+  id:string,
+  status:ReturnStatus,
+  staffNotes?:string,
+  inspection?:Array<{returnItemId:string;condition:ReturnCondition}>,
+ ){
   return this.prisma.$transaction(async tx=>{
-   const locked=await tx.$queryRaw<Array<{id:string;status:ReturnStatus;staff_notes:string|null}>>`SELECT id, status, staff_notes FROM returns WHERE id=${id} FOR UPDATE`;
+   const locked=await tx.$queryRaw<Array<{id:string;status:ReturnStatus;staff_notes:string|null}>>`
+     SELECT id,status,staff_notes FROM returns WHERE id=${id} FOR UPDATE
+   `;
    const r=locked[0];
    if(!r) throw new NotFoundException({error:'RETURN_NOT_FOUND'});
    if(!transitions[r.status].includes(status)) throw new BadRequestException({error:'INVALID_RETURN_TRANSITION'});
+
+   const items=await tx.returnItem.findMany({where:{returnId:id},select:{id:true,orderItemId:true,quantity:true,condition:true}});
+   if(status===ReturnStatus.INSPECTED){
+    if(!inspection || inspection.length!==items.length) throw new BadRequestException({error:'RETURN_INSPECTION_REQUIRED'});
+    const inspectionById=new Map(inspection.map(i=>[i.returnItemId,i.condition]));
+    if(inspectionById.size!==items.length || items.some(i=>!inspectionById.has(i.id))) throw new BadRequestException({error:'RETURN_INSPECTION_INCOMPLETE'});
+    for(const item of items){
+     const condition=inspectionById.get(item.id)!;
+     await tx.returnItem.update({where:{id:item.id},data:{condition}});
+     if(condition===ReturnCondition.SEALED_INTACT){
+      const [inventory]=await tx.$queryRaw<Array<{variant_id:string}>>`
+       SELECT oi.variant_id FROM order_items oi WHERE oi.id=${item.orderItemId} FOR UPDATE
+      `;
+      if(!inventory?.variant_id) throw new BadRequestException({error:'RETURN_INVENTORY_VARIANT_MISSING'});
+      await tx.$executeRaw`
+       UPDATE inventory
+       SET quantity_available=quantity_available+${item.quantity},
+           version=version+1,
+           updated_at=NOW()
+       WHERE variant_id=${inventory.variant_id}
+      `;
+      await tx.inventoryMovement.create({
+       data:{
+        variantId:inventory.variant_id,
+        delta:item.quantity,
+        reason:'RESTOCK_RETURN',
+        referenceId:item.id,
+       }
+      });
+     }
+    }
+   }
    return tx.return.update({
-     where:{id},
-     data:{
-       status,
-       staffNotes:staffNotes??r.staff_notes??undefined,
-       resolvedAt:['COMPLETED','REJECTED','CANCELLED'].includes(status)?new Date():undefined
-     },
-     include:{items:true}
+    where:{id},
+    data:{
+     status,
+     staffNotes:staffNotes??r.staff_notes??undefined,
+     resolvedAt:['COMPLETED','REJECTED','CANCELLED'].includes(status)?new Date():undefined
+    },
+    include:{items:true}
    });
- });
+  });
  }
 }
