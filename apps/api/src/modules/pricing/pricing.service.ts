@@ -92,7 +92,7 @@ export class PricingService {
     const afterDiscount = subtotalCents - couponDiscountCents;
 
     // 4. Tax is fail-closed. A checkout without authoritative HSN configuration is invalid.
-    if (!taxRatesByVariant || taxRatesByVariant.size !== lineItems.length) {
+    if (!taxRatesByVariant || lineItems.some((item) => !taxRatesByVariant.has(item.variantId))) {
       throw new UnprocessableEntityException({
         error: 'TAX_CONFIGURATION_MISSING',
         message: 'TAX_CONFIGURATION_MISSING: Authoritative HSN tax configuration is required for every checkout item.',
