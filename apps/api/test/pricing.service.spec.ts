@@ -135,7 +135,7 @@ describe('PricingService - Server-Authoritative Commerce Calculations', () => {
       maxDiscountCents: null,
     };
 
-    const result = pricingService.calculate([baseItem1], coupon);
+    const result = pricingService.calculate([baseItem1], coupon, taxRates);
 
     expect(result.breakdown.couponCode).toBeUndefined();
     expect(result.breakdown.couponDiscountCents).toBe(0);
