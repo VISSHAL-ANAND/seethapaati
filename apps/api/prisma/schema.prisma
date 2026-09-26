@@ -651,8 +651,6 @@ enum ReturnStatus { REQUESTED APPROVED PICKED_UP RECEIVED INSPECTED REFUND_ELIGI
 enum ReturnReason { DAMAGED WRONG_ITEM QUALITY_ISSUE OTHER }
 enum RefundStatus { PENDING PROCESSED FAILED }
 enum RefundReason { RETURN REFUND_REQUIRED_OTHER }
-enum InvoiceStatusDummy { UNUSED }
-
 model Shipment {
   id String @id @default(uuid())
   orderId String @unique @map("order_id")
