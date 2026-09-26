@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { OrderStatus, ShipmentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notifications/notification.service';
 
 const transitions: Record<ShipmentStatus, ShipmentStatus[]> = {
   CREATED: ['AWB_ASSIGNED','CANCELLED'], AWB_ASSIGNED: ['SHIPPED','CANCELLED'],
@@ -9,7 +10,7 @@ const transitions: Record<ShipmentStatus, ShipmentStatus[]> = {
 
 @Injectable()
 export class ShippingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly notifications: NotificationService) {}
 
   async create(orderId:string, carrier:string, trackingNumber?:string, trackingUrl?:string) {
     return this.prisma.$transaction(async tx=>{
@@ -38,6 +39,7 @@ export class ShippingService {
         deliveredAt:status===ShipmentStatus.DELIVERED?now:s.deliveredAt
       }});
       await tx.shipmentTrackingEvent.create({data:{shipmentId,status,location,description}});
+      await this.notifications.enqueueShipmentStatus(s.orderId, shipmentId, status, tx);
       const orderStatus = status===ShipmentStatus.SHIPPED?OrderStatus.SHIPPED:status===ShipmentStatus.OUT_FOR_DELIVERY?OrderStatus.OUT_FOR_DELIVERY:status===ShipmentStatus.DELIVERED?OrderStatus.DELIVERED:undefined;
       if(orderStatus) await tx.order.updateMany({where:{id:s.orderId,status:{in:[OrderStatus.PAID,OrderStatus.PROCESSING,OrderStatus.PACKED,OrderStatus.SHIPPED,OrderStatus.OUT_FOR_DELIVERY]}},data:{status:orderStatus}});
       return shipment;
