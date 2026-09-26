@@ -372,6 +372,8 @@ model OrderItem {
   skuSnapshot        String   @map("sku_snapshot")
   packTypeSnapshot   String   @map("pack_type_snapshot")
   weightGramsSnapshot Int     @map("weight_grams_snapshot")
+  hsnCodeSnapshot    String?  @map("hsn_code_snapshot")
+  unitTaxRatePercent Float?   @map("unit_tax_rate_percent")
   unitPriceCents     Int      @map("unit_price_cents")
   quantity           Int
   taxCents           Int      @default(0) @map("tax_cents")
