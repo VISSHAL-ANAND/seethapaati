@@ -652,6 +652,7 @@ model OutboxEvent {
 enum ShipmentStatus { CREATED AWB_ASSIGNED SHIPPED OUT_FOR_DELIVERY DELIVERED CANCELLED }
 enum ReturnStatus { REQUESTED APPROVED PICKED_UP RECEIVED INSPECTED REFUND_ELIGIBLE COMPLETED REJECTED CANCELLED }
 enum ReturnReason { DAMAGED WRONG_ITEM QUALITY_ISSUE OTHER }
+enum ReturnCondition { SEALED_INTACT DAMAGED_OPENED }
 enum RefundStatus { PENDING PROCESSED FAILED }
 enum RefundReason { RETURN REFUND_REQUIRED_OTHER }
 model Shipment {
@@ -710,6 +711,7 @@ model ReturnItem {
   returnId String @map("return_id")
   orderItemId String @map("order_item_id")
   quantity Int
+  condition ReturnCondition?
   return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
   orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
   @@unique([returnId, orderItemId])
