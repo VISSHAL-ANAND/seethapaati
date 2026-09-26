@@ -213,6 +213,28 @@ export class WebhookService {
 
     // Atomic database transaction for order + payment + inventory settlement
     const result = await this.prisma.$transaction(async (tx) => {
+      // Serialize duplicate deliveries on the payment row. Without this lock,
+      // a concurrent webhook could observe an already-settled reservation and
+      // incorrectly run the post-expiry stock allocation path a second time.
+      const lockedPayments = await tx.$queryRaw<Array<{ status: PaymentStatus }>>`
+        SELECT status FROM payments WHERE id = ${payment.id} FOR UPDATE
+      `;
+      const lockedPayment = lockedPayments[0];
+      if (!lockedPayment) {
+        throw new NotFoundException({ error: 'PAYMENT_NOT_FOUND', message: 'Payment disappeared during webhook processing.' });
+      }
+      if (lockedPayment.status === PaymentStatus.CAPTURED) {
+        await tx.paymentWebhookEvent.update({
+          where: { eventId },
+          data: { processed: true, processedAt: new Date() },
+        });
+        return {
+          orderId: payment.orderId,
+          status: OrderStatus.PAID,
+          reason: 'DUPLICATE_PAYMENT_CAPTURED_WEBHOOK',
+        };
+      }
+
       // 1. Transition Payment -> CAPTURED
       await tx.payment.updateMany({
         where: { id: payment.id, status: { in: [PaymentStatus.PENDING, PaymentStatus.AUTHORIZED] } },
