@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import type { CartResponse } from '@seethapaati/contracts';
 import { fetchApi } from '../../lib/api-client';
 import { Button } from '../../components/ui/Button';
@@ -33,7 +34,7 @@ export default function CartPage() {
       </div>
 
       {items.length === 0 ? (
-        <div className="py-24 text-center"><p className="font-serif text-4xl">Your bag is empty.</p><a href="/shop" className="mt-6 inline-block text-xs underline underline-offset-4">Explore the collection</a></div>
+        <div className="py-24 text-center"><p className="font-serif text-4xl">Your bag is empty.</p><Link href="/shop" className="mt-6 inline-block text-xs underline underline-offset-4">Explore the collection</Link></div>
       ) : (
         <div className="mt-12 grid gap-14 md:grid-cols-[1fr_360px]">
           <div className="divide-y divide-[#E3DFD7]">
