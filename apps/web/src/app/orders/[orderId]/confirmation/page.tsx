@@ -12,11 +12,14 @@ type Order = {
   shippingAddress: Record<string, unknown>;
 };
 type Invoice = { invoiceNumber: string; status: string; issuedAt: string; grandTotalCents: number; currency: string };
+type TrackingEvent = { id: string; status: string; location?: string | null; description?: string | null; occurredAt: string };
+type Shipment = { id: string; status: string; carrier: string; trackingNumber?: string | null; trackingUrl?: string | null; trackingEvents: TrackingEvent[] };
 
 export default function OrderConfirmationPage() {
   const params = useParams<{ orderId: string }>();
   const [order, setOrder] = useState<Order | null>(null);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [shipment, setShipment] = useState<Shipment | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -25,9 +28,11 @@ export default function OrderConfirmationPage() {
     Promise.all([
       fetchApi<Order>('/orders/' + params.orderId),
       fetchApi<Invoice>('/invoices/order/' + params.orderId).catch(() => null),
-    ]).then(([nextOrder, nextInvoice]) => {
+      fetchApi<Shipment>('/orders/' + params.orderId + '/track').catch(() => null),
+    ]).then(([nextOrder, nextInvoice, nextShipment]) => {
       setOrder(nextOrder);
       setInvoice(nextInvoice);
+      setShipment(nextShipment);
     }).catch((err) => {
       if (err instanceof ApiClientError && err.code === 'UNAUTHORIZED') setError('Please sign in to view this order.');
       else setError(err instanceof Error ? err.message : 'Unable to load order');
@@ -42,7 +47,7 @@ export default function OrderConfirmationPage() {
       <Link href="/account/orders" className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">← Orders</Link>
       <div className="mt-8 grid gap-14 md:grid-cols-[1fr_320px]">
         <section>
-          <p className="text-[10px] uppercase tracking-[0.24em] text-[#B8860B]">Order confirmed</p>
+          <p className="text-[10px] uppercase tracking-[0.24em] text-[#B8860B]">Order</p>
           <h1 className="mt-3 font-serif text-5xl">{order.orderNumber}</h1>
           <div className="mt-5 flex flex-wrap gap-4 text-xs uppercase tracking-[0.14em] text-[#181513]/55"><span>{order.status.replaceAll('_', ' ')}</span><span>{new Date(order.createdAt).toLocaleDateString('en-IN')}</span></div>
           <div className="mt-12 divide-y divide-[#E3DFD7] border-y border-[#E3DFD7]">
@@ -58,11 +63,34 @@ export default function OrderConfirmationPage() {
         </section>
         <aside className="space-y-10">
           <section className="border-t border-[#181513] pt-6"><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Delivery</p><p className="mt-5 text-sm leading-6">{String(order.shippingAddress.addressLine1 || '')}<br />{String(order.shippingAddress.city || '')}, {String(order.shippingAddress.state || '')}<br />{String(order.shippingAddress.postalCode || '')}</p></section>
-          {invoice && <section className="border-t border-[#181513] pt-6"><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Invoice</p><p className="mt-4 font-serif text-xl">{invoice.invoiceNumber}</p><p className="mt-1 text-xs text-[#181513]/50">{invoice.status} · {new Date(invoice.issuedAt).toLocaleDateString('en-IN')}</p></section>}
-          {order.status === 'DELIVERED' && <ReturnRequest order={order} />}
+          {shipment && <Tracking shipment={shipment} />}
+          {invoice && <section className="border-t border-[#181513] pt-6"><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Invoice</p><p className="mt-4 font-serif text-xl">{invoice.invoiceNumber}</p><p className="mt-1 text-xs text-[#181513]/50">{invoice.status} · {new Date(invoice.issuedAt).toLocaleDateString('en-IN')}</p><p className="mt-4 text-xs text-[#181513]/50">Invoice total · ₹{(invoice.grandTotalCents / 100).toLocaleString('en-IN')}</p></section>}
+          <ReturnRequest order={order} />
         </aside>
       </div>
     </main>
+  );
+}
+
+function Tracking({ shipment }: { shipment: Shipment }) {
+  return (
+    <section className="border-t border-[#181513] pt-6">
+      <p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Shipment tracking</p>
+      <div className="mt-5">
+        <p className="text-sm">{shipment.carrier}{shipment.trackingNumber ? ' · ' + shipment.trackingNumber : ''}</p>
+        <p className="mt-1 text-[10px] uppercase tracking-[0.15em] text-[#181513]/45">{shipment.status.replaceAll('_', ' ')}</p>
+        <div className="mt-6 space-y-5 border-l border-[#E3DFD7] pl-5">
+          {shipment.trackingEvents.map((event) => (
+            <div key={event.id} className="relative">
+              <span className="absolute -left-[22px] top-1 h-1.5 w-1.5 rounded-full bg-[#181513]" />
+              <p className="text-xs uppercase tracking-[0.12em]">{event.status.replaceAll('_', ' ')}</p>
+              <p className="mt-1 text-xs text-[#181513]/50">{new Date(event.occurredAt).toLocaleString('en-IN')}{event.location ? ' · ' + event.location : ''}</p>
+              {event.description && <p className="mt-1 text-xs text-[#181513]/60">{event.description}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -87,10 +115,14 @@ function ReturnRequest({ order }: { order: Order }) {
     } finally { setSaving(false); }
   }
 
+  const canRequest = order.status === 'DELIVERED';
+
   return (
     <section className="border-t border-[#181513] pt-6">
-      <p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Returns</p>
-      <button type="button" onClick={() => setOpen(!open)} className="mt-4 text-xs underline underline-offset-4">{open ? 'Close return form' : 'Request a return'}</button>
+      <div className="flex items-start justify-between gap-4">
+        <div><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Returns</p><p className="mt-2 text-xs text-[#181513]/50">Returns can be requested after delivery.</p></div>
+        {canRequest && <button type="button" onClick={() => setOpen(!open)} className="text-xs underline underline-offset-4">{open ? 'Close' : 'Request'}</button>}
+      </div>
       {message && <p className="mt-4 text-sm">{message}</p>}
       {open && <div className="mt-6 space-y-5">
         <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full border-b border-[#181513]/25 bg-transparent py-2 text-sm outline-none">
