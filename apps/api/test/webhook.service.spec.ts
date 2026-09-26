@@ -17,7 +17,7 @@ describe('WebhookService - Authoritative Payment Confirmation & Settlement', () 
   beforeEach(() => {
     prisma = {
       $transaction: jest.fn(async (cb) => cb(prisma)),
-      $queryRaw: jest.fn(),
+      $queryRaw: jest.fn().mockResolvedValue([{ status: PaymentStatus.PENDING }]),
       $executeRaw: jest.fn(),
       paymentWebhookEvent: {
         findUnique: jest.fn(),
