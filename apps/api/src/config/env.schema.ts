@@ -29,6 +29,8 @@ export const EnvSchema = z
     RESERVATION_TTL_MINUTES: z.coerce.number().int().positive().default(15),
     RESEND_API_KEY: z.string().optional(),
     EMAIL_FROM: z.string().email().default('onboarding@resend.dev'),
+    AUTH_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
+    AUTH_RATE_LIMIT_MAX_ATTEMPTS: z.coerce.number().int().positive().default(10),
 
     // Statutory Seller Configuration for Invoicing & GST
     SELLER_LEGAL_NAME: z.string().min(1).default('Seethapaati Foods Private Limited'),
@@ -45,6 +47,11 @@ export const EnvSchema = z
   .superRefine((data, ctx) => {
     if ((data.NODE_ENV === 'production' || data.NODE_ENV === 'staging') && !data.RESEND_API_KEY) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['RESEND_API_KEY'], message: 'RESEND_API_KEY is required in production/staging' });
+    }
+    if (data.NODE_ENV === 'production' || data.NODE_ENV === 'staging') {
+      if (data.CORS_ORIGIN.split(',').some((origin) => origin.trim() === '*')) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['CORS_ORIGIN'], message: 'Wildcard CORS is not allowed in production/staging' });
+      }
     }
     if (data.NODE_ENV === 'production') {
       if (
