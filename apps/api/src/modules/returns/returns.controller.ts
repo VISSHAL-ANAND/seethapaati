@@ -67,11 +67,12 @@ export class ReturnsController {
     @Body(new ZodValidationPipe(ReturnTransitionRequestSchema)) b: {
       status: ReturnStatus;
       staffNotes?: string;
+      inspection?: Array<{ returnItemId: string; condition: 'SEALED_INTACT' | 'DAMAGED_OPENED' }>;
     },
   ) {
     return {
       success: true,
-      data: await this.returns.transition(id, b.status, b.staffNotes),
+      data: await this.returns.transition(id, b.status, b.staffNotes, b.inspection),
     };
   }
 
