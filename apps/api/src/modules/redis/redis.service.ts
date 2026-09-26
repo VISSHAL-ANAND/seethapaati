@@ -129,6 +129,23 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  async incr(key: string, ttlSeconds?: number): Promise<number> {
+    if (this.isConnected && this.client) {
+      try {
+        const value = await this.client.incr(key);
+        if (value === 1 && ttlSeconds) await this.client.expire(key, ttlSeconds);
+        return value;
+      } catch (err) {
+        if (this.isProduction) throw new Error(`[RedisService] Redis incr failed in production: ${(err as Error).message}`);
+      }
+    }
+    if (!this.memoryFallbackAllowed) throw new Error(`[RedisService] Redis is unreachable and memory fallback is disabled in production.`);
+    const item = this.memoryFallback.get(key);
+    const next = item && (!item.expiresAt || item.expiresAt >= Date.now()) ? Number(item.value) + 1 : 1;
+    this.memoryFallback.set(key, { value: String(next), expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : item?.expiresAt });
+    return next;
+  }
+
   async del(key: string): Promise<void> {
     if (this.isConnected && this.client) {
       try {
