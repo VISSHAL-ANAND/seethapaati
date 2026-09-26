@@ -11,3 +11,5 @@ export * from './inventory.js';
 export * from './tax.js';
 export * from './invoices.js';
 export * from './outbox.js';
+export * from './returns.js';
+export * from './shipping.js';
