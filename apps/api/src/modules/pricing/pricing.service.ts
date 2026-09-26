@@ -49,7 +49,7 @@ export interface PricingResult {
 export class PricingService {
   private readonly logger = new Logger(PricingService.name);
 
-  calculate(items: CartItemInput[], coupon?: CouponInput | null): PricingResult {
+  calculate(items: CartItemInput[], coupon?: CouponInput | null, taxRatesByVariant?: Map<string, number>): PricingResult {
     if (items.length === 0) {
       return this.emptyResult();
     }
@@ -92,8 +92,11 @@ export class PricingService {
 
     const afterDiscount = subtotalCents - couponDiscountCents;
 
-    // 4. GST (5% on food)
-    const taxCents = Math.round(afterDiscount * GST_RATE);
+    // 4. Tax is normally supplied from the authoritative HSN configuration.
+    // Legacy default remains only for callers that do not provide tax configuration.
+    const taxCents = taxRatesByVariant && taxRatesByVariant.size > 0
+      ? this.calculateConfiguredTax(lineItems, couponDiscountCents, taxRatesByVariant)
+      : Math.round(afterDiscount * GST_RATE);
 
     // 5. Shipping
     const shippingCents = afterDiscount >= FREE_SHIPPING_THRESHOLD_CENTS ? 0 : STANDARD_SHIPPING_CENTS;
@@ -116,6 +119,20 @@ export class PricingService {
     };
 
     return { lineItems, breakdown };
+  }
+
+  private calculateConfiguredTax(lineItems: PricingLineItem[], discountCents: number, rates: Map<string, number>): number {
+    const subtotal = lineItems.reduce((sum, li) => sum + li.lineTotalCents, 0);
+    if (subtotal <= 0) return 0;
+    const allocations = lineItems.map((li) => Math.floor((discountCents * li.lineTotalCents) / subtotal));
+    let remainder = discountCents - allocations.reduce((a, b) => a + b, 0);
+    for (let i = 0; remainder > 0; i = (i + 1) % allocations.length) { allocations[i]++; remainder--; }
+    return lineItems.reduce((sum, li, i) => {
+      const taxable = li.lineTotalCents - allocations[i];
+      const rate = rates.get(li.variantId);
+      if (rate === undefined) throw new Error('TAX_CONFIGURATION_MISSING');
+      return sum + Math.round((taxable * rate) / 100);
+    }, 0);
   }
 
   private emptyResult(): PricingResult {
