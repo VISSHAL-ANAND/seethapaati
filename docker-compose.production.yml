@@ -1,0 +1,84 @@
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:?RAZORPAY_KEY_ID is required}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:?RAZORPAY_KEY_SECRET is required}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:?RAZORPAY_WEBHOOK_SECRET is required}
+      RESEND_API_KEY: ${RESEND_API_KEY:?RESEND_API_KEY is required}
+      EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM is required}
+      SELLER_LEGAL_NAME: ${SELLER_LEGAL_NAME:?SELLER_LEGAL_NAME is required}
+      SELLER_TRADE_NAME: ${SELLER_TRADE_NAME:?SELLER_TRADE_NAME is required}
+      SELLER_GSTIN: ${SELLER_GSTIN:?SELLER_GSTIN is required}
+      SELLER_ADDRESS_LINE1: ${SELLER_ADDRESS_LINE1:?SELLER_ADDRESS_LINE1 is required}
+      SELLER_ADDRESS_LINE2: ${SELLER_ADDRESS_LINE2:-}
+      SELLER_CITY: ${SELLER_CITY:?SELLER_CITY is required}
+      SELLER_STATE: ${SELLER_STATE:?SELLER_STATE is required}
+      SELLER_STATE_CODE: ${SELLER_STATE_CODE:?SELLER_STATE_CODE is required}
+      SELLER_PINCODE: ${SELLER_PINCODE:?SELLER_PINCODE is required}
+      RESERVATION_TTL_MINUTES: ${RESERVATION_TTL_MINUTES:-15}
+      AUTH_RATE_LIMIT_WINDOW_SECONDS: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:-60}
+      AUTH_RATE_LIMIT_MAX_ATTEMPTS: ${AUTH_RATE_LIMIT_MAX_ATTEMPTS:-10}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4000/api/v1/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
