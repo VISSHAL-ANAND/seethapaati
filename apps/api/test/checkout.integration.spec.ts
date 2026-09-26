@@ -61,7 +61,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
 
     inventoryService = new InventoryService(prisma, configService);
     pricingService = new PricingService();
-    taxConfig = new TaxConfigurationService(prisma);
+    taxConfig = new TaxConfigurationService(prisma, configService);
     cartService = new CartService(prisma, pricingService);
     orderNumberService = new OrderNumberService(prisma);
 
@@ -120,6 +120,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
         name: `Chettinad Masala ${testSuffix}`,
         slug: `chettinad-masala-${testSuffix}`,
         description: 'Authentic stone ground masala',
+        hsnCode: '0910',
         categoryId,
         status: 'ACTIVE',
       },
