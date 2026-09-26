@@ -21,6 +21,8 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { InvoicingModule } from './modules/invoicing/invoicing.module';
+import { FulfillmentModule } from './modules/fulfillment/fulfillment.module';
+import { ReturnsModule } from './modules/returns/returns.module';
 
 @Module({
   imports: [
@@ -43,6 +45,8 @@ import { InvoicingModule } from './modules/invoicing/invoicing.module';
     CheckoutModule,
     OrdersModule,
     InvoicingModule,
+    FulfillmentModule,
+    ReturnsModule,
   ],
   providers: [
     {
