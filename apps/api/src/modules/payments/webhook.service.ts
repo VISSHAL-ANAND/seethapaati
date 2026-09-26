@@ -1,0 +1,494 @@
+import {
+  Injectable,
+  Logger,
+  UnauthorizedException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { RazorpayAdapter } from './razorpay.adapter';
+import { InventoryService } from '../inventory/inventory.service';
+import { PaymentsService } from './payments.service';
+import { OrderStatus, PaymentStatus } from '@prisma/client';
+
+export interface WebhookProcessingResult {
+  success: boolean;
+  duplicate?: boolean;
+  message?: string;
+  orderId?: string;
+  status?: string;
+}
+
+/**
+ * WEBHOOK SERVICE
+ *
+ * Authoritative payment confirmation for Razorpay webhooks.
+ * Features:
+ * - Timing-safe HMAC-SHA256 signature verification
+ * - Webhook event deduplication (event_id in payment_webhook_events)
+ * - Concurrency protection against simultaneous duplicate deliveries
+ * - Strict payment amount and currency verification
+ * - Single-transaction atomic order + payment + inventory commitment
+ */
+@Injectable()
+export class WebhookService {
+  private readonly logger = new Logger(WebhookService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private razorpayAdapter: RazorpayAdapter,
+    private inventoryService: InventoryService,
+    private paymentsService: PaymentsService,
+  ) {}
+
+  /**
+   * Process incoming Razorpay webhook.
+   */
+  async processRazorpayWebhook(
+    rawBody: string | Buffer,
+    signature: string,
+    eventIdHeader?: string,
+  ): Promise<WebhookProcessingResult> {
+    // 1. Verify webhook signature
+    const isValid = this.razorpayAdapter.verifyWebhookSignature(rawBody, signature);
+    if (!isValid) {
+      this.logger.warn('Razorpay webhook signature verification failed');
+      throw new UnauthorizedException({
+        error: 'INVALID_WEBHOOK_SIGNATURE',
+        message: 'Webhook signature verification failed',
+      });
+    }
+
+    // 2. Parse body
+    const bodyStr = typeof rawBody === 'string' ? rawBody : rawBody.toString('utf-8');
+    let payload: any;
+    try {
+      payload = JSON.parse(bodyStr);
+    } catch {
+      throw new BadRequestException({ error: 'INVALID_JSON', message: 'Malformed JSON payload' });
+    }
+
+    const eventType: string = payload.event;
+    // Event ID priority: header > payload.event_id > payload.payload?.payment?.entity?.id + '_' + eventType
+    const paymentEntity = payload.payload?.payment?.entity;
+    const eventId: string =
+      eventIdHeader ||
+      payload.event_id ||
+      payload.id ||
+      (paymentEntity ? `${paymentEntity.id}_${eventType}` : `evt_${Date.now()}_${Math.random()}`);
+
+    // 3. Webhook idempotency guard
+    const existingEvent = await this.prisma.paymentWebhookEvent.findUnique({
+      where: { eventId },
+    });
+
+    if (existingEvent && existingEvent.processed) {
+      this.logger.log(`Duplicate webhook event ${eventId} already processed, skipping`);
+      return {
+        success: true,
+        duplicate: true,
+        message: 'Event already processed',
+      };
+    }
+
+    if (!existingEvent) {
+      try {
+        await this.prisma.paymentWebhookEvent.create({
+          data: {
+            gateway: 'RAZORPAY',
+            eventId,
+            eventType,
+            payload,
+            processed: false,
+          },
+        });
+      } catch (err: any) {
+        if (err.code === 'P2002') {
+          this.logger.warn(`Duplicate webhook event ${eventId} race condition caught (P2002)`);
+          return {
+            success: true,
+            duplicate: true,
+            message: 'Event already processed or being processed',
+          };
+        }
+        throw err;
+      }
+    }
+
+    // 4. Dispatch based on event type
+    switch (eventType) {
+      case 'payment.captured':
+        return await this.handlePaymentCaptured(eventId, paymentEntity, payload);
+
+      case 'payment.failed':
+        return await this.handlePaymentFailed(eventId, paymentEntity, payload);
+
+      case 'payment.authorized':
+        return await this.handlePaymentAuthorized(eventId, paymentEntity, payload);
+
+      default:
+        this.logger.log(`Unhandled webhook event type: ${eventType}`);
+        await this.prisma.paymentWebhookEvent.update({
+          where: { eventId },
+          data: { processed: true, processedAt: new Date() },
+        });
+        return { success: true, message: `Event ${eventType} received but no action required` };
+    }
+  }
+
+  /**
+   * Handle payment.captured event.
+   * Atomically:
+   * - Transitions Payment -> CAPTURED
+   * - Commits stock reservations (reserved -> permanently sold) inside transaction
+   * - Handles late payment post-expiry inventory check
+   * - Transitions Order -> PAID (or CANCELLED if stock unavailable)
+   * - Records OrderStatusHistory
+   * - Updates CouponUsage if coupon was used
+   * - Marks webhook event as processed
+   */
+  private async handlePaymentCaptured(
+    eventId: string,
+    paymentEntity: any,
+    rawPayload: any,
+  ): Promise<WebhookProcessingResult> {
+    if (!paymentEntity) {
+      throw new BadRequestException({ error: 'MISSING_PAYMENT_ENTITY', message: 'No payment entity in webhook payload' });
+    }
+
+    const gatewayOrderId: string = paymentEntity.order_id;
+    const gatewayPaymentId: string = paymentEntity.id;
+    const amountCents: number = Number(paymentEntity.amount);
+    const currency: string = paymentEntity.currency;
+
+    const payment = await this.prisma.payment.findUnique({
+      where: { gatewayOrderId },
+      include: { order: { include: { items: true } } },
+    });
+
+    if (!payment) {
+      throw new NotFoundException({
+        error: 'PAYMENT_NOT_FOUND',
+        message: `Payment record not found for gateway order ${gatewayOrderId}`,
+      });
+    }
+
+    // Idempotency: skip if already captured
+    if (payment.status === PaymentStatus.CAPTURED) {
+      this.logger.log(`Payment ${payment.id} for order ${payment.orderId} already CAPTURED, skipping duplicate`);
+      await this.prisma.paymentWebhookEvent.update({
+        where: { eventId },
+        data: { processed: true, processedAt: new Date() },
+      });
+      return {
+        success: true,
+        duplicate: true,
+        orderId: payment.orderId,
+        status: payment.order?.status ?? OrderStatus.PAID,
+      };
+    }
+
+    // Amount & Currency Verification: Never trust without strict comparison
+    if (payment.amountCents !== amountCents) {
+      this.logger.error(
+        `Payment amount mismatch for order ${payment.orderId}! Expected: ${payment.amountCents}, received: ${amountCents}`,
+      );
+      throw new BadRequestException({
+        error: 'AMOUNT_MISMATCH',
+        message: 'Payment amount does not match order record',
+      });
+    }
+
+    if (payment.currency !== currency) {
+      this.logger.error(
+        `Payment currency mismatch for order ${payment.orderId}! Expected: ${payment.currency}, received: ${currency}`,
+      );
+      throw new BadRequestException({
+        error: 'CURRENCY_MISMATCH',
+        message: 'Payment currency does not match order record',
+      });
+    }
+
+    // Atomic database transaction for order + payment + inventory settlement
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Transition Payment -> CAPTURED
+      await tx.payment.updateMany({
+        where: { id: payment.id, status: { in: [PaymentStatus.PENDING, PaymentStatus.AUTHORIZED] } },
+        data: {
+          status: PaymentStatus.CAPTURED,
+          gatewayPaymentId,
+        },
+      });
+
+      // 2. Commit stock reservations inside the transaction (CRIT-01)
+      const committedCount = await this.inventoryService.commitReservationsBySession(payment.orderId, tx);
+
+      let orderFinalStatus: OrderStatus = OrderStatus.PAID;
+      let orderStatusReason = 'PAYMENT_CAPTURED_WEBHOOK';
+
+      // 3. Handle Late Payment Webhook where inventory reservation expired (HIGH-03)
+      if (committedCount === 0 && payment.order && payment.order.items.length > 0) {
+        this.logger.warn(
+          `Reservations expired for order ${payment.orderId}. Verifying available inventory under row lock...`,
+        );
+
+        // Sort items deterministically by variantId to prevent deadlocks
+        const orderItems = [...payment.order.items]
+          .filter((item) => !!item.variantId)
+          .sort((a, b) => a.variantId!.localeCompare(b.variantId!));
+
+        let allStockAvailable = true;
+
+        for (const item of orderItems) {
+          const [row] = await tx.$queryRaw<Array<{ quantity_available: number; quantity_reserved: number }>>`
+            SELECT quantity_available, quantity_reserved
+            FROM inventory
+            WHERE variant_id = ${item.variantId}
+            FOR UPDATE
+          `;
+
+          if (!row || (row.quantity_available - row.quantity_reserved) < item.quantity) {
+            allStockAvailable = false;
+            break;
+          }
+        }
+
+        if (allStockAvailable) {
+          // Allocate and deduct stock directly
+          for (const item of orderItems) {
+            await tx.$executeRaw`
+              UPDATE inventory
+              SET quantity_available = quantity_available - ${item.quantity},
+                  version = version + 1,
+                  updated_at = NOW()
+              WHERE variant_id = ${item.variantId}
+            `;
+
+            await tx.inventoryMovement.create({
+              data: {
+                variantId: item.variantId!,
+                delta: -item.quantity,
+                reason: 'SALE_COMMITTED_POST_EXPIRY',
+                referenceId: payment.orderId,
+              },
+            });
+          }
+          orderFinalStatus = OrderStatus.PAID;
+          orderStatusReason = 'PAYMENT_CAPTURED_POST_EXPIRY_STOCK_ALLOCATED';
+          this.logger.log(`Post-expiry inventory successfully allocated for order ${payment.orderId}`);
+        } else {
+          // Stock unavailable - order must be cancelled for refund
+          orderFinalStatus = OrderStatus.CANCELLED;
+          orderStatusReason = 'PAYMENT_CAPTURED_OUT_OF_STOCK_REQUIRES_REFUND';
+          this.logger.error(
+            `Payment captured for order ${payment.orderId} but inventory is out of stock after expiry! Order cancelled, requires refund.`,
+          );
+        }
+      }
+
+      // 4. Update Order status
+      const orderUpdate = await tx.order.updateMany({
+        where: { id: payment.orderId, status: OrderStatus.PENDING_PAYMENT },
+        data: { status: orderFinalStatus },
+      });
+
+      if (orderUpdate.count === 1) {
+        await tx.orderStatusHistory.create({
+          data: {
+            orderId: payment.orderId,
+            oldStatus: OrderStatus.PENDING_PAYMENT,
+            newStatus: orderFinalStatus,
+            reason: orderStatusReason,
+            changedBy: 'RAZORPAY_WEBHOOK',
+          },
+        });
+      }
+
+      // 5. Record transaction ledger entry
+      await tx.paymentTransaction.create({
+        data: {
+          paymentId: payment.id,
+          eventType: 'payment.captured',
+          payload: rawPayload,
+        },
+      });
+
+      // 6. Record Coupon Usage (HIGH-04) if coupon was applied and order was paid
+      if (orderFinalStatus === OrderStatus.PAID && payment.order?.notes) {
+        try {
+          const notesData = JSON.parse(payment.order.notes);
+          if (notesData?.couponId) {
+            const existingUsage = await tx.couponUsage.findFirst({
+              where: { orderId: payment.orderId, couponId: notesData.couponId },
+            });
+
+            if (!existingUsage) {
+              await tx.couponUsage.create({
+                data: {
+                  couponId: notesData.couponId,
+                  userId: payment.order.userId,
+                  orderId: payment.orderId,
+                },
+              });
+
+              await tx.coupon.update({
+                where: { id: notesData.couponId },
+                data: { usageCount: { increment: 1 } },
+              });
+
+              this.logger.log(
+                `Recorded coupon usage for coupon ${notesData.couponId} on order ${payment.orderId}`,
+              );
+            }
+          }
+        } catch {
+          // Non-critical if notes parsing fails
+        }
+      }
+
+      // 7. Mark webhook event as processed
+      await tx.paymentWebhookEvent.update({
+        where: { eventId },
+        data: { processed: true, processedAt: new Date() },
+      });
+
+      return {
+        orderId: payment.orderId,
+        status: orderFinalStatus,
+        reason: orderStatusReason,
+      };
+    });
+
+    this.logger.log(
+      `Order ${result.orderId} finalized as ${result.status} (${result.reason}) via webhook`,
+    );
+
+    return {
+      success: true,
+      orderId: result.orderId,
+      status: result.status,
+    };
+  }
+
+  /**
+   * Handle payment.failed event.
+   * Atomically:
+   * - Transitions Payment -> FAILED
+   * - Transitions Order -> PAYMENT_FAILED
+   * - Cancels/releases stock reservations back to available pool within the same transaction
+   */
+  private async handlePaymentFailed(
+    eventId: string,
+    paymentEntity: any,
+    rawPayload: any,
+  ): Promise<WebhookProcessingResult> {
+    if (!paymentEntity) {
+      throw new BadRequestException({ error: 'MISSING_PAYMENT_ENTITY', message: 'No payment entity in webhook payload' });
+    }
+
+    const gatewayOrderId: string = paymentEntity.order_id;
+    const gatewayPaymentId: string = paymentEntity.id;
+
+    const payment = await this.prisma.payment.findUnique({
+      where: { gatewayOrderId },
+      include: { order: true },
+    });
+
+    if (!payment) {
+      this.logger.warn(`Failed payment webhook for unknown gateway order: ${gatewayOrderId}`);
+      await this.prisma.paymentWebhookEvent.update({
+        where: { eventId },
+        data: { processed: true, processedAt: new Date() },
+      });
+      return { success: false, message: 'Payment record not found' };
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Transition Payment -> FAILED
+      await tx.payment.updateMany({
+        where: { id: payment.id, status: { in: [PaymentStatus.PENDING, PaymentStatus.AUTHORIZED] } },
+        data: { status: PaymentStatus.FAILED, gatewayPaymentId },
+      });
+
+      // 2. Transition Order -> PAYMENT_FAILED
+      const orderUpdate = await tx.order.updateMany({
+        where: { id: payment.orderId, status: OrderStatus.PENDING_PAYMENT },
+        data: { status: OrderStatus.PAYMENT_FAILED },
+      });
+
+      if (orderUpdate.count === 1) {
+        await tx.orderStatusHistory.create({
+          data: {
+            orderId: payment.orderId,
+            oldStatus: OrderStatus.PENDING_PAYMENT,
+            newStatus: OrderStatus.PAYMENT_FAILED,
+            reason: paymentEntity.error_description || 'PAYMENT_FAILED_WEBHOOK',
+            changedBy: 'RAZORPAY_WEBHOOK',
+          },
+        });
+      }
+
+      await tx.paymentTransaction.create({
+        data: {
+          paymentId: payment.id,
+          eventType: 'payment.failed',
+          payload: rawPayload,
+        },
+      });
+
+      // 3. Cancel stock reservations inside the transaction (CRIT-01)
+      await this.inventoryService.cancelReservationsBySession(payment.orderId, tx);
+
+      await tx.paymentWebhookEvent.update({
+        where: { eventId },
+        data: { processed: true, processedAt: new Date() },
+      });
+    });
+
+    this.logger.log(`Order ${payment.orderId} marked as PAYMENT_FAILED, reservations cancelled`);
+
+    return {
+      success: true,
+      orderId: payment.orderId,
+      status: OrderStatus.PAYMENT_FAILED,
+    };
+  }
+
+  /**
+   * Handle payment.authorized event.
+   */
+  private async handlePaymentAuthorized(
+    eventId: string,
+    paymentEntity: any,
+    rawPayload: any,
+  ): Promise<WebhookProcessingResult> {
+    if (!paymentEntity) return { success: true };
+
+    const gatewayOrderId: string = paymentEntity.order_id;
+    const payment = await this.prisma.payment.findUnique({
+      where: { gatewayOrderId },
+    });
+
+    if (payment && payment.status === PaymentStatus.PENDING) {
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: PaymentStatus.AUTHORIZED },
+      });
+
+      await this.prisma.paymentTransaction.create({
+        data: {
+          paymentId: payment.id,
+          eventType: 'payment.authorized',
+          payload: rawPayload,
+        },
+      });
+    }
+
+    await this.prisma.paymentWebhookEvent.update({
+      where: { eventId },
+      data: { processed: true, processedAt: new Date() },
+    });
+
+    return { success: true, message: 'Payment authorized recorded' };
+  }
+}

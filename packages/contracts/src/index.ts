@@ -8,3 +8,6 @@ export * from './orders.js';
 export * from './coupons.js';
 export * from './users.js';
 export * from './inventory.js';
+export * from './tax.js';
+export * from './invoices.js';
+export * from './outbox.js';

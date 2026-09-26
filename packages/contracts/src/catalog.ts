@@ -67,6 +67,7 @@ export const ProductVariantDtoSchema = z.object({
   productId: z.string().uuid().optional(),
   sku: z.string(),
   name: z.string().nullable().optional(),
+  hsnCode: z.string().nullable().optional(),
   weightGrams: z.number().int().positive(),
   packType: z.string(),
   priceCents: z.number().int().nonnegative(),
@@ -119,6 +120,7 @@ export type ProductDto = z.infer<typeof ProductDtoSchema>;
 export const CreateProductVariantRequestSchema = z.object({
   sku: z.string().min(1).max(100).toUpperCase(),
   name: z.string().max(255).optional(),
+  hsnCode: z.string().max(8).optional(),
   weightGrams: z.number().int().positive(),
   packType: z.string().min(1).max(100).default('Pouch'),
   priceCents: z.number().int().positive(),

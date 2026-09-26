@@ -13,6 +13,9 @@ import { PricingModule } from './modules/pricing/pricing.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { CartModule } from './modules/cart/cart.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { CheckoutModule } from './modules/checkout/checkout.module';
+import { OrdersModule } from './modules/orders/orders.module';
 import { AuthGuard } from './common/guards/auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -35,6 +38,9 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
     CatalogModule,
     InventoryModule,
     CartModule,
+    PaymentsModule,
+    CheckoutModule,
+    OrdersModule,
   ],
   providers: [
     {

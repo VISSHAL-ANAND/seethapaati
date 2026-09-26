@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+export const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+export const GSTIN_PLACEHOLDER = '33AAAAA0000A1Z5'; // PLACEHOLDER ONLY — MUST NOT BE USED IN PRODUCTION
+
 export const EnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
@@ -14,6 +17,19 @@ export const EnvSchema = z
     RAZORPAY_KEY_ID: z.string().default('rzp_test_placeholder'),
     RAZORPAY_KEY_SECRET: z.string().default('rzp_secret_placeholder'),
     RAZORPAY_WEBHOOK_SECRET: z.string().default('rzp_webhook_placeholder'),
+    RESERVATION_TTL_MINUTES: z.coerce.number().int().positive().default(15),
+
+    // Statutory Seller Configuration for Invoicing & GST
+    SELLER_LEGAL_NAME: z.string().min(1).default('Seethapaati Foods Private Limited'),
+    SELLER_TRADE_NAME: z.string().min(1).default('Seethapaati'),
+    // 33AAAAA0000A1Z5 IS PLACEHOLDER ONLY — MUST NOT BE USED IN PRODUCTION
+    SELLER_GSTIN: z.string().default(GSTIN_PLACEHOLDER),
+    SELLER_ADDRESS_LINE1: z.string().min(1).default('42, Heritage Kitchen Road, Mylapore'),
+    SELLER_ADDRESS_LINE2: z.string().optional(),
+    SELLER_CITY: z.string().min(1).default('Chennai'),
+    SELLER_STATE: z.string().min(1).default('Tamil Nadu'),
+    SELLER_STATE_CODE: z.string().regex(/^\d{2}$/, 'State code must be 2 digits').default('33'),
+    SELLER_PINCODE: z.string().regex(/^\d{6}$/, 'Pincode must be 6 digits').default('600004'),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
@@ -26,6 +42,28 @@ export const EnvSchema = z
           path: ['JWT_SECRET'],
           message:
             'In production, JWT_SECRET must be at least 32 characters and cannot use default development secret',
+        });
+      }
+
+      // Production GSTIN Validation: Fail Closed
+      if (data.SELLER_GSTIN === GSTIN_PLACEHOLDER) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['SELLER_GSTIN'],
+          message:
+            'In production, SELLER_GSTIN cannot use the placeholder 33AAAAA0000A1Z5 (PLACEHOLDER ONLY — MUST NOT BE USED IN PRODUCTION)',
+        });
+      } else if (!GSTIN_REGEX.test(data.SELLER_GSTIN)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['SELLER_GSTIN'],
+          message: 'In production, SELLER_GSTIN must be a valid 15-character statutory GSTIN format',
+        });
+      } else if (data.SELLER_GSTIN.substring(0, 2) !== data.SELLER_STATE_CODE) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['SELLER_STATE_CODE'],
+          message: 'SELLER_STATE_CODE must match the first 2 digits of SELLER_GSTIN',
         });
       }
     }

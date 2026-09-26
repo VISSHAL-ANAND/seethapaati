@@ -48,3 +48,19 @@ export const OrderDtoSchema = z.object({
 });
 
 export type OrderDto = z.infer<typeof OrderDtoSchema>;
+
+export const OrderListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+  status: z.nativeEnum(OrderStatus).optional(),
+});
+
+export type OrderListQuery = z.infer<typeof OrderListQuerySchema>;
+
+export const UpdateOrderStatusRequestSchema = z.object({
+  status: z.nativeEnum(OrderStatus),
+  reason: z.string().trim().max(500).optional(),
+});
+
+export type UpdateOrderStatusRequest = z.infer<typeof UpdateOrderStatusRequestSchema>;
+

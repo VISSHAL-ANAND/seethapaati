@@ -1,6 +1,6 @@
-import { validateEnv } from '../src/config/env.schema';
+import { validateEnv, GSTIN_PLACEHOLDER } from '../src/config/env.schema';
 
-describe('EnvSchema - Production Configuration Validation', () => {
+describe('EnvSchema - Configuration Validation', () => {
   it('should accept valid development configuration with defaults', () => {
     const validDev = validateEnv({
       NODE_ENV: 'development',
@@ -9,6 +9,9 @@ describe('EnvSchema - Production Configuration Validation', () => {
     expect(validDev.NODE_ENV).toBe('development');
     expect(validDev.PORT).toBe(4000);
     expect(validDev.JWT_SECRET).toBe('development_jwt_secret_must_be_changed_in_prod');
+    expect(validDev.SELLER_GSTIN).toBe(GSTIN_PLACEHOLDER);
+    expect(validDev.SELLER_STATE_CODE).toBe('33');
+    expect(validDev.SELLER_LEGAL_NAME).toBe('Seethapaati Foods Private Limited');
   });
 
   it('should throw an error in production if JWT_SECRET uses the default dev secret', () => {
@@ -16,28 +19,52 @@ describe('EnvSchema - Production Configuration Validation', () => {
       validateEnv({
         NODE_ENV: 'production',
         JWT_SECRET: 'development_jwt_secret_must_be_changed_in_prod',
+        SELLER_GSTIN: '33ABCDE1234F1Z5',
       }),
     ).toThrow('Environment variable validation failed');
   });
 
-  it('should throw an error in production if JWT_SECRET is shorter than 32 characters', () => {
+  it('should throw an error in production if SELLER_GSTIN uses the development placeholder', () => {
     expect(() =>
       validateEnv({
         NODE_ENV: 'production',
-        JWT_SECRET: 'too_short_secret',
+        JWT_SECRET: 'a_very_secure_production_jwt_secret_at_least_32_characters_long',
+        SELLER_GSTIN: GSTIN_PLACEHOLDER,
       }),
     ).toThrow('Environment variable validation failed');
   });
 
-  it('should pass in production when a secure 32+ character secret is provided', () => {
+  it('should throw an error in production if SELLER_GSTIN has an invalid format', () => {
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'production',
+        JWT_SECRET: 'a_very_secure_production_jwt_secret_at_least_32_characters_long',
+        SELLER_GSTIN: 'INVALID_GSTIN_123',
+      }),
+    ).toThrow('Environment variable validation failed');
+  });
+
+  it('should throw an error in production if SELLER_STATE_CODE does not match GSTIN prefix', () => {
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'production',
+        JWT_SECRET: 'a_very_secure_production_jwt_secret_at_least_32_characters_long',
+        SELLER_GSTIN: '33ABCDE1234F1Z5',
+        SELLER_STATE_CODE: '29', // Karnataka code with Tamil Nadu GSTIN
+      }),
+    ).toThrow('Environment variable validation failed');
+  });
+
+  it('should pass in production when a secure secret and valid statutory seller GSTIN are provided', () => {
     const validProd = validateEnv({
       NODE_ENV: 'production',
       JWT_SECRET: 'a_very_secure_production_jwt_secret_at_least_32_characters_long',
+      SELLER_GSTIN: '33ABCDE1234F1Z5',
+      SELLER_STATE_CODE: '33',
     });
 
     expect(validProd.NODE_ENV).toBe('production');
-    expect(validProd.JWT_SECRET).toBe(
-      'a_very_secure_production_jwt_secret_at_least_32_characters_long',
-    );
+    expect(validProd.SELLER_GSTIN).toBe('33ABCDE1234F1Z5');
+    expect(validProd.SELLER_STATE_CODE).toBe('33');
   });
 });

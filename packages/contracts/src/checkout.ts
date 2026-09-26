@@ -29,3 +29,22 @@ export const CheckoutIntentResponseSchema = z.object({
 });
 
 export type CheckoutIntentResponse = z.infer<typeof CheckoutIntentResponseSchema>;
+
+export const VerifyPaymentRequestSchema = z.object({
+  orderId: z.string().uuid(),
+  razorpay_payment_id: z.string().min(1),
+  razorpay_order_id: z.string().min(1),
+  razorpay_signature: z.string().min(1),
+});
+
+export type VerifyPaymentRequest = z.infer<typeof VerifyPaymentRequestSchema>;
+
+export const VerifyPaymentResponseSchema = z.object({
+  orderId: z.string().uuid(),
+  orderNumber: z.string(),
+  status: z.string(),
+  verified: z.boolean(),
+});
+
+export type VerifyPaymentResponse = z.infer<typeof VerifyPaymentResponseSchema>;
+
