@@ -2,6 +2,15 @@ import { z } from 'zod';
 
 export const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 export const GSTIN_PLACEHOLDER = '33AAAAA0000A1Z5'; // PLACEHOLDER ONLY — MUST NOT BE USED IN PRODUCTION
+export const SELLER_CONFIG_PLACEHOLDERS = {
+  legalName: 'Seethapaati Foods Private Limited',
+  tradeName: 'Seethapaati',
+  addressLine1: '42, Heritage Kitchen Road, Mylapore',
+  city: 'Chennai',
+  state: 'Tamil Nadu',
+  stateCode: '33',
+  pincode: '600004',
+} as const;
 
 export const EnvSchema = z
   .object({
@@ -42,6 +51,23 @@ export const EnvSchema = z
           path: ['JWT_SECRET'],
           message:
             'In production, JWT_SECRET must be at least 32 characters and cannot use default development secret',
+        });
+      }
+
+      // Production seller identity/address configuration must be explicitly supplied.
+      const sellerPlaceholdersUsed =
+        data.SELLER_LEGAL_NAME === SELLER_CONFIG_PLACEHOLDERS.legalName ||
+        data.SELLER_TRADE_NAME === SELLER_CONFIG_PLACEHOLDERS.tradeName ||
+        data.SELLER_ADDRESS_LINE1 === SELLER_CONFIG_PLACEHOLDERS.addressLine1 ||
+        data.SELLER_CITY === SELLER_CONFIG_PLACEHOLDERS.city ||
+        data.SELLER_STATE === SELLER_CONFIG_PLACEHOLDERS.state ||
+        data.SELLER_STATE_CODE === SELLER_CONFIG_PLACEHOLDERS.stateCode ||
+        data.SELLER_PINCODE === SELLER_CONFIG_PLACEHOLDERS.pincode;
+      if (sellerPlaceholdersUsed) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['SELLER_LEGAL_NAME'],
+          message: 'Production seller legal/trade name, address, state code and pincode must be explicitly configured; development placeholders are not allowed.',
         });
       }
 
