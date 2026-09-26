@@ -341,6 +341,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
     const retryVariant = await prisma.productVariant.create({
       data: {
         productId,
+        hsnCode: '0910',
         sku: `RETRY-SKU-${testSuffix}`,
         priceCents: 20000,
         weightGrams: 250,
@@ -490,6 +491,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
     const couponVariant = await prisma.productVariant.create({
       data: {
         productId,
+        hsnCode: '0910',
         sku: `COUPON-SKU-${testSuffix}`,
         priceCents: 30000,
         weightGrams: 500,
@@ -588,6 +590,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
     const rollbackVariant = await prisma.productVariant.create({
       data: {
         productId,
+        hsnCode: '0910',
         sku: `ROLLBACK-SKU-${testSuffix}`,
         priceCents: 10000,
         weightGrams: 100,
@@ -656,6 +659,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
     const cancelVariant = await prisma.productVariant.create({
       data: {
         productId,
+        hsnCode: '0910',
         sku: `CANCEL-SKU-${testSuffix}`,
         priceCents: 12000,
         weightGrams: 100,
