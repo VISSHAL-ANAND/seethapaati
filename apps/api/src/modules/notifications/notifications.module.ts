@@ -5,3 +5,11 @@ import { NotificationService } from './notification.service';
 import { NotificationWorker } from './notification.worker';
 import { EmailProvider } from './email.provider';
 import { NotificationController } from './notification.controller';
+
+@Module({
+  imports: [PrismaModule, InvoicingModule],
+  controllers: [NotificationController],
+  providers: [NotificationService, NotificationWorker, EmailProvider],
+  exports: [NotificationService],
+})
+export class NotificationsModule {}
