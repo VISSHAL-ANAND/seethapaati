@@ -12,6 +12,7 @@ import { PaymentsService } from './payments.service';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { OutboxService } from '../invoicing/outbox.service';
 import { randomUUID } from 'crypto';
+import { NotificationService } from '../notifications/notification.service';
 
 export interface WebhookProcessingResult {
   success: boolean;
@@ -42,6 +43,7 @@ export class WebhookService {
     private inventoryService: InventoryService,
     private paymentsService: PaymentsService,
     private outboxService: OutboxService,
+    private notificationService: NotificationService,
   ) {}
 
   /**
@@ -317,14 +319,9 @@ export class WebhookService {
 
       if (orderUpdate.count === 1) {
         await tx.orderStatusHistory.create({
-          data: {
-            orderId: payment.orderId,
-            oldStatus: OrderStatus.PENDING_PAYMENT,
-            newStatus: orderFinalStatus,
-            reason: orderStatusReason,
-            changedBy: 'RAZORPAY_WEBHOOK',
-          },
+          data: { orderId: payment.orderId, oldStatus: OrderStatus.PENDING_PAYMENT, newStatus: orderFinalStatus, reason: orderStatusReason, changedBy: 'RAZORPAY_WEBHOOK' },
         });
+        await this.notificationService.enqueueOrderStatus(payment.orderId, orderFinalStatus, tx);
       }
 
       // 5. Record transaction ledger entry
@@ -446,14 +443,9 @@ export class WebhookService {
 
       if (orderUpdate.count === 1) {
         await tx.orderStatusHistory.create({
-          data: {
-            orderId: payment.orderId,
-            oldStatus: OrderStatus.PENDING_PAYMENT,
-            newStatus: OrderStatus.PAYMENT_FAILED,
-            reason: paymentEntity.error_description || 'PAYMENT_FAILED_WEBHOOK',
-            changedBy: 'RAZORPAY_WEBHOOK',
-          },
+          data: { orderId: payment.orderId, oldStatus: OrderStatus.PENDING_PAYMENT, newStatus: OrderStatus.PAYMENT_FAILED, reason: paymentEntity.error_description || 'PAYMENT_FAILED_WEBHOOK', changedBy: 'RAZORPAY_WEBHOOK' },
         });
+        await this.notificationService.enqueueOrderStatus(payment.orderId, OrderStatus.PAYMENT_FAILED, tx);
       }
 
       await tx.paymentTransaction.create({
