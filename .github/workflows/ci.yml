@@ -1,4 +1,5 @@
 name: CI
+# Phase 4 final-audit verification
 on:
   workflow_dispatch:
   push:
