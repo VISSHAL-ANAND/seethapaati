@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { fetchApi } from '../../../lib/api-client';
 
 type Notification = {
@@ -20,18 +23,31 @@ type Preferences = {
   refundUpdates: boolean;
 };
 
-const labels: Record<string,string> = {
+const labels: Record<string, string> = {
   NOTIFY_ORDER_STATUS: 'Order update',
   NOTIFY_SHIPMENT_STATUS: 'Shipment update',
   NOTIFY_RETURN_STATUS: 'Return update',
   NOTIFY_REFUND_STATUS: 'Refund update',
 };
 
-export default async function NotificationsPage() {
-  const [notifications, preferences] = await Promise.all([
-    fetchApi<Notification[]>('/users/me/notifications'),
-    fetchApi<Preferences>('/users/me/notifications/preferences'),
-  ]);
+export default function NotificationsPage() {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [preferences, setPreferences] = useState<Preferences | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    Promise.all([
+      fetchApi<Notification[]>('/users/me/notifications'),
+      fetchApi<Preferences>('/users/me/notifications/preferences'),
+    ])
+      .then(([items, prefs]) => {
+        setNotifications(items);
+        setPreferences(prefs);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Unable to load notifications');
+      });
+  }, []);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-16 lg:px-10">
@@ -42,10 +58,10 @@ export default async function NotificationsPage() {
           <p className="mt-5 max-w-xl text-sm leading-7 text-black/60">
             Transactional updates are recorded here as they move through the delivery system.
           </p>
-
+          {error && <p className="mt-8 text-sm text-red-700">{error}</p>}
           <div className="mt-12 divide-y divide-black/10 border-y border-black/10">
             {notifications.length === 0 ? (
-              <div className="py-16 text-sm text-black/50">No notifications yet.</div>
+              <div className="py-16 text-sm text-black/50">{error ? 'Unable to load notifications.' : 'No notifications yet.'}</div>
             ) : notifications.map((item) => (
               <article key={item.id} className="grid gap-4 py-7 sm:grid-cols-[1fr_auto]">
                 <div>
@@ -62,11 +78,10 @@ export default async function NotificationsPage() {
             ))}
           </div>
         </section>
-
         <aside className="border-l border-black/10 pl-8">
           <p className="text-xs uppercase tracking-[0.2em] text-black/45">Delivery preferences</p>
           <div className="mt-6 space-y-4 text-sm">
-            {Object.entries(preferences).map(([key, enabled]) => (
+            {preferences && Object.entries(preferences).map(([key, enabled]) => (
               <div key={key} className="flex items-center justify-between gap-6 border-b border-black/10 pb-4">
                 <span>{key.replace(/([A-Z])/g, ' $1')}</span>
                 <span className="text-xs uppercase tracking-widest">{enabled ? 'On' : 'Off'}</span>
