@@ -46,6 +46,30 @@ export class RazorpayAdapter implements PaymentGatewayAdapter {
    * Create Razorpay Order with automatic capture enabled.
    * Call OUTSIDE PostgreSQL transaction.
    */
+  async createRefund(paymentId: string, amountCents: number, refundId: string): Promise<{ id: string; status?: string }> {
+    try {
+      const refund = await this.client.payments.refund(paymentId, {
+        amount: amountCents,
+        notes: { refundId },
+      });
+      return { id: refund.id, status: refund.status };
+    } catch (err) {
+      this.logger.error(`Razorpay refund failed: ${(err as Error).message}`);
+      throw new BadGatewayException({ error: 'PAYMENT_REFUND_GATEWAY_ERROR', message: 'Refund could not be submitted to the payment gateway.' });
+    }
+  }
+
+  async findRefundByInternalId(paymentId: string, refundId: string): Promise<{ id: string; status?: string } | null> {
+    try {
+      const result = await this.client.refunds.all({ payment_id: paymentId });
+      const items = result?.items ?? [];
+      const found = items.find((r: any) => r?.notes?.refundId === refundId);
+      return found ? { id: found.id, status: found.status } : null;
+    } catch {
+      return null;
+    }
+  }
+
   async createOrder(params: CreateGatewayOrderParams): Promise<GatewayOrderResult> {
     try {
       const order = await this.client.orders.create({
