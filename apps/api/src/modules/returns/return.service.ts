@@ -1,4 +1,4 @@
-import {BadRequestException,ForbiddenException,Injectable,NotFoundException} from '@nestjs/common';
+import {BadRequestException,Injectable,NotFoundException} from '@nestjs/common';
 import {Prisma,ReturnReason,ReturnStatus} from '@prisma/client';
 import {PrismaService} from '../prisma/prisma.service';
 
@@ -24,6 +24,20 @@ export class ReturnService {
  }
  async listForUser(userId:string,readAll=false){return this.prisma.return.findMany({where:readAll?undefined:{userId},include:{items:true,refunds:true},orderBy:{createdAt:'desc'}})}
  async transition(id:string,status:ReturnStatus,staffNotes?:string){
-  return this.prisma.$transaction(async tx=>{const r=await tx.return.findUnique({where:{id}});if(!r)throw new NotFoundException({error:'RETURN_NOT_FOUND'});if(!transitions[r.status].includes(status))throw new BadRequestException({error:'INVALID_RETURN_TRANSITION'});return tx.return.update({where:{id},data:{status,staffNotes:staffNotes??r.staffNotes,resolvedAt:['COMPLETED','REJECTED','CANCELLED'].includes(status)?new Date():r.resolvedAt},include:{items:true}})});
+  return this.prisma.$transaction(async tx=>{
+   const locked=await tx.$queryRaw<Array<{id:string;status:ReturnStatus;staff_notes:string|null}>>`SELECT id, status, staff_notes FROM returns WHERE id=${id} FOR UPDATE`;
+   const r=locked[0];
+   if(!r) throw new NotFoundException({error:'RETURN_NOT_FOUND'});
+   if(!transitions[r.status].includes(status)) throw new BadRequestException({error:'INVALID_RETURN_TRANSITION'});
+   return tx.return.update({
+     where:{id},
+     data:{
+       status,
+       staffNotes:staffNotes??r.staff_notes??undefined,
+       resolvedAt:['COMPLETED','REJECTED','CANCELLED'].includes(status)?new Date():undefined
+     },
+     include:{items:true}
+   });
+ });
  }
 }
