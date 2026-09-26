@@ -456,7 +456,6 @@ model PaymentTransaction {
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@index([paymentId])
-  @@index([status, processingLeaseUntil])
   @@map("payment_transactions")
 }
 
@@ -649,11 +648,49 @@ model OutboxEvent {
 // PHASE 4: FULFILLMENT, RETURNS & REFUNDS
 // -------------------------------------------------------------
 
-enum ShipmentStatus { CREATED AWB_ASSIGNED SHIPPED OUT_FOR_DELIVERY DELIVERED CANCELLED }
-enum ReturnStatus { REQUESTED APPROVED PICKED_UP RECEIVED INSPECTED REFUND_ELIGIBLE COMPLETED REJECTED CANCELLED }
-enum ReturnReason { DAMAGED WRONG_ITEM QUALITY_ISSUE OTHER }
-enum RefundStatus { PENDING PROCESSED FAILED }
-enum RefundReason { RETURN REFUND_REQUIRED_OTHER }
+enum ShipmentStatus {
+  CREATED
+  AWB_ASSIGNED
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  PICKED_UP
+  RECEIVED
+  INSPECTED
+  REFUND_ELIGIBLE
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum ReturnReason {
+  DAMAGED
+  WRONG_ITEM
+  QUALITY_ISSUE
+  OTHER
+}
+
+enum ReturnCondition {
+  SEALED_INTACT
+  DAMAGED_OPENED
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+enum RefundReason {
+  RETURN
+  REFUND_REQUIRED_OTHER
+}
 model Shipment {
   id String @id @default(uuid())
   orderId String @unique @map("order_id")
@@ -710,6 +747,7 @@ model ReturnItem {
   returnId String @map("return_id")
   orderItemId String @map("order_item_id")
   quantity Int
+  condition ReturnCondition?
   return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
   orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
   @@unique([returnId, orderItemId])
@@ -729,6 +767,8 @@ model Refund {
   reason RefundReason
   notes String?
   processedAt DateTime? @map("processed_at")
+  processingLeaseUntil DateTime? @map("processing_lease_until")
+  processingToken String? @map("processing_token")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)

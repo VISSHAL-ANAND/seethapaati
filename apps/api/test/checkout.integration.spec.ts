@@ -8,6 +8,8 @@ import { PaymentsService } from '../src/modules/payments/payments.service';
 import { WebhookService } from '../src/modules/payments/webhook.service';
 import { RazorpayAdapter } from '../src/modules/payments/razorpay.adapter';
 import { OrdersService } from '../src/modules/orders/orders.service';
+import { TaxConfigurationService } from '../src/modules/invoicing/tax-configuration.service';
+import { OutboxService } from '../src/modules/invoicing/outbox.service';
 import { ConfigService } from '@nestjs/config';
 import { DiscountType, OrderStatus } from '@prisma/client';
 import { BadGatewayException, BadRequestException } from '@nestjs/common';
@@ -24,6 +26,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
   let paymentsService: PaymentsService;
   let webhookService: WebhookService;
   let ordersService: OrdersService;
+  let taxConfig: TaxConfigurationService;
 
   const testSuffix = Date.now().toString().slice(-6);
   let userId: string;
@@ -58,7 +61,9 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
 
     inventoryService = new InventoryService(prisma, configService);
     pricingService = new PricingService();
-    cartService = new CartService(prisma, pricingService);
+    taxConfig = new TaxConfigurationService(prisma, configService);
+    await prisma.taxRate.upsert({ where: { hsnCode: '0910' }, update: { taxRatePercent: 5, isActive: true }, create: { id: `test-tax-0910-${testSuffix}`, hsnCode: '0910', description: 'Test tax rate', taxRatePercent: 5, isActive: true } });
+    cartService = new CartService(prisma, pricingService, taxConfig);
     orderNumberService = new OrderNumberService(prisma);
 
     razorpayAdapter = new RazorpayAdapter(configService);
@@ -77,6 +82,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
       inventoryService,
       orderNumberService,
       razorpayAdapter,
+      taxConfig,
     );
 
     webhookService = new WebhookService(
@@ -84,6 +90,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
       razorpayAdapter,
       inventoryService,
       paymentsService,
+      new OutboxService(prisma),
     );
 
     ordersService = new OrdersService(prisma, inventoryService);
@@ -125,6 +132,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
       data: {
         productId,
         sku: `MASALA-CHET-${testSuffix}`,
+        hsnCode: '0910',
         priceCents: 15000, // ₹150
         weightGrams: 200,
         packType: 'Glass Jar',
@@ -195,6 +203,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
         addressLine1: '12 Temple Lane',
         city: 'Madurai',
         state: 'Tamil Nadu',
+        stateCode: 'TN',
         postalCode: '625001',
         country: 'IN',
       },
@@ -332,6 +341,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
     const retryVariant = await prisma.productVariant.create({
       data: {
         productId,
+        hsnCode: '0910',
         sku: `RETRY-SKU-${testSuffix}`,
         priceCents: 20000,
         weightGrams: 250,
@@ -377,6 +387,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
           addressLine1: '45 South St',
           city: 'Madurai',
           state: 'Tamil Nadu',
+        stateCode: 'TN',
           postalCode: '625001',
           country: 'IN',
         },
@@ -427,6 +438,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
         addressLine1: '45 South St',
         city: 'Madurai',
         state: 'Tamil Nadu',
+        stateCode: 'TN',
         postalCode: '625001',
         country: 'IN',
       },
@@ -479,6 +491,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
     const couponVariant = await prisma.productVariant.create({
       data: {
         productId,
+        hsnCode: '0910',
         sku: `COUPON-SKU-${testSuffix}`,
         priceCents: 30000,
         weightGrams: 500,
@@ -533,6 +546,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
       addressLine1: '100 Bazar St',
       city: 'Madurai',
       state: 'Tamil Nadu',
+        stateCode: 'TN',
       postalCode: '625001',
       country: 'IN',
     };
@@ -576,6 +590,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
     const rollbackVariant = await prisma.productVariant.create({
       data: {
         productId,
+        hsnCode: '0910',
         sku: `ROLLBACK-SKU-${testSuffix}`,
         priceCents: 10000,
         weightGrams: 100,
@@ -620,6 +635,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
           addressLine1: '12 Temple Lane',
           city: 'Madurai',
           state: 'Tamil Nadu',
+        stateCode: 'TN',
           postalCode: '625001',
           country: 'IN',
         },
@@ -643,6 +659,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
     const cancelVariant = await prisma.productVariant.create({
       data: {
         productId,
+        hsnCode: '0910',
         sku: `CANCEL-SKU-${testSuffix}`,
         priceCents: 12000,
         weightGrams: 100,
@@ -688,6 +705,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
         addressLine1: '12 Temple Lane',
         city: 'Madurai',
         state: 'Tamil Nadu',
+        stateCode: 'TN',
         postalCode: '625001',
         country: 'IN',
       },

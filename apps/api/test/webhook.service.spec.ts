@@ -12,16 +12,18 @@ describe('WebhookService - Authoritative Payment Confirmation & Settlement', () 
   let razorpayAdapter: any;
   let inventoryService: any;
   let paymentsService: any;
+  let outboxService: any;
 
   beforeEach(() => {
     prisma = {
       $transaction: jest.fn(async (cb) => cb(prisma)),
-      $queryRaw: jest.fn(),
+      $queryRaw: jest.fn().mockResolvedValue([{ status: PaymentStatus.PENDING }]),
       $executeRaw: jest.fn(),
       paymentWebhookEvent: {
         findUnique: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       payment: {
         findUnique: jest.fn(),
@@ -59,12 +61,16 @@ describe('WebhookService - Authoritative Payment Confirmation & Settlement', () 
     };
 
     paymentsService = {};
+    outboxService = {
+      enqueueInvoiceGeneration: jest.fn().mockResolvedValue(undefined),
+    };
 
     service = new WebhookService(
       prisma as unknown as PrismaService,
       razorpayAdapter as unknown as RazorpayAdapter,
       inventoryService as unknown as InventoryService,
       paymentsService as unknown as PaymentsService,
+      outboxService,
     );
   });
 
@@ -105,6 +111,10 @@ describe('WebhookService - Authoritative Payment Confirmation & Settlement', () 
       const p2002Error: any = new Error('Unique constraint failed');
       p2002Error.code = 'P2002';
       prisma.paymentWebhookEvent.create.mockRejectedValue(p2002Error);
+      prisma.paymentWebhookEvent.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ eventId: 'evt_concurrent_1', processed: false, processingLeaseUntil: null });
+      prisma.paymentWebhookEvent.updateMany.mockResolvedValue({ count: 0 });
 
       const body = JSON.stringify({
         event: 'payment.captured',

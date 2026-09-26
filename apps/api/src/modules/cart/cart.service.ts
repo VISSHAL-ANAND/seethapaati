@@ -8,6 +8,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService, CartItemInput } from '../pricing/pricing.service';
+import { TaxConfigurationService } from '../invoicing/tax-configuration.service';
 import {
   AddCartItemRequest,
   UpdateCartItemRequest,
@@ -31,6 +32,7 @@ export class CartService {
   constructor(
     private prisma: PrismaService,
     private pricing: PricingService,
+    private taxConfig: TaxConfigurationService,
   ) {}
 
   /**
@@ -122,7 +124,22 @@ export class CartService {
     }
 
     // Build pricing inputs from DB-fetched data (never client)
-    const pricingInputs: CartItemInput[] = cart.items
+    const pricingItems = (cart as Prisma.CartGetPayload<{
+      include: {
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: { select: { name: true } },
+                inventory: { select: { quantityAvailable: true, quantityReserved: true } },
+              },
+            },
+          },
+        },
+      },
+    }>).items;
+
+    const pricingInputs: CartItemInput[] = pricingItems
       .filter((item) => item.variant.status === 'ACTIVE')
       .map((item) => ({
         variantId: item.variantId,
@@ -133,6 +150,16 @@ export class CartService {
         quantity: item.quantity,
         unitPriceCents: item.variant.priceCents, // DB price — not client-supplied
       }));
+
+    const taxRatesByVariant = new Map<string, number>();
+    for (const item of pricingItems.filter((item) => item.variant.status === 'ACTIVE')) {
+      const hsnCode = item.variant.hsnCode;
+      if (!hsnCode) {
+        throw new BadRequestException({ error: 'TAX_CONFIGURATION_MISSING', message: 'Active cart items require an HSN code.' });
+      }
+      const taxRate = await this.taxConfig.getRate(hsnCode);
+      taxRatesByVariant.set(item.variantId, Number(taxRate.taxRatePercent));
+    }
 
     const { lineItems, breakdown } = this.pricing.calculate(
       pricingInputs,
@@ -145,6 +172,7 @@ export class CartService {
             maxDiscountCents: couponData.maxDiscountCents,
           }
         : null,
+      taxRatesByVariant,
     );
 
     return { cartId: cart.id, items: lineItems, pricing: breakdown };

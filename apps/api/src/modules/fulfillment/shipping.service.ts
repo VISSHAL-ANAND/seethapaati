@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { OrderStatus, Prisma, ShipmentStatus } from '@prisma/client';
+import { OrderStatus, ShipmentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 const transitions: Record<ShipmentStatus, ShipmentStatus[]> = {
@@ -15,7 +15,7 @@ export class ShippingService {
     return this.prisma.$transaction(async tx=>{
       const order=await tx.order.findUnique({where:{id:orderId}});
       if(!order) throw new NotFoundException({error:'ORDER_NOT_FOUND'});
-      if(![OrderStatus.PAID,OrderStatus.PROCESSING,OrderStatus.PACKED].includes(order.status)) throw new BadRequestException({error:'ORDER_NOT_SHIPPABLE'});
+      if(!([OrderStatus.PAID,OrderStatus.PROCESSING,OrderStatus.PACKED] as OrderStatus[]).includes(order.status)) throw new BadRequestException({error:'ORDER_NOT_SHIPPABLE'});
       const existing=await tx.shipment.findUnique({where:{orderId}});
       if(existing) return existing;
       return tx.shipment.create({data:{orderId,carrier,trackingNumber,trackingUrl,status:trackingNumber?'AWB_ASSIGNED':'CREATED',
@@ -25,7 +25,10 @@ export class ShippingService {
 
   async addEvent(shipmentId:string,status:ShipmentStatus,location?:string,description?:string) {
     return this.prisma.$transaction(async tx=>{
-      const s=await tx.shipment.findUnique({where:{id:shipmentId}});
+      const [s] = await tx.$queryRaw<Array<{id:string;orderId:string;status:ShipmentStatus;carrier:string;trackingNumber:string|null;trackingUrl:string|null;dispatchedAt:Date|null;deliveredAt:Date|null}>>`
+        SELECT id, order_id AS "orderId", status, carrier, tracking_number AS "trackingNumber", tracking_url AS "trackingUrl", dispatched_at AS "dispatchedAt", delivered_at AS "deliveredAt"
+        FROM shipments WHERE id=${shipmentId} FOR UPDATE
+      `;
       if(!s) throw new NotFoundException({error:'SHIPMENT_NOT_FOUND'});
       if(!transitions[s.status].includes(status)) throw new BadRequestException({error:'INVALID_SHIPMENT_TRANSITION'});
       if(status===ShipmentStatus.SHIPPED && (!s.carrier || !s.trackingNumber)) throw new BadRequestException({error:'TRACKING_REQUIRED'});

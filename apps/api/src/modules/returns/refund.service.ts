@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus, PaymentStatus, Prisma, RefundReason, RefundStatus, ReturnStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus, RefundReason, RefundStatus, ReturnStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RazorpayAdapter } from '../payments/razorpay.adapter';
@@ -47,7 +47,26 @@ export class RefundService {
           if (!payment?.gatewayPaymentId) {
             throw new BadRequestException({ error: 'PAYMENT_NOT_REFUNDABLE' });
           }
-          if (amountCents <= 0 || amountCents > payment.amountCents) {
+
+          // Serialize refund creation against the captured payment so concurrent
+          // refund requests cannot collectively exceed the captured amount.
+          const lockedPayments = await tx.$queryRaw<Array<{ amount_cents: number }>>`
+            SELECT amount_cents FROM payments WHERE id = ${payment.id} FOR UPDATE
+          `;
+          const lockedPayment = lockedPayments[0];
+          if (!lockedPayment) {
+            throw new NotFoundException({ error: 'PAYMENT_NOT_REFUNDABLE' });
+          }
+
+          const refunded = await tx.refund.aggregate({
+            where: {
+              paymentId: payment.id,
+              status: { in: [RefundStatus.PENDING, RefundStatus.PROCESSED] },
+            },
+            _sum: { amountCents: true },
+          });
+          const alreadyCommitted = refunded._sum.amountCents ?? 0;
+          if (amountCents <= 0 || amountCents > lockedPayment.amount_cents - alreadyCommitted) {
             throw new BadRequestException({ error: 'INVALID_REFUND_AMOUNT' });
           }
 

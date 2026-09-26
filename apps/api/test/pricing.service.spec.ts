@@ -27,6 +27,11 @@ describe('PricingService - Server-Authoritative Commerce Calculations', () => {
     unitPriceCents: 25000, // ₹250.00
   };
 
+  const taxRates = new Map<string, number>([
+    [baseItem1.variantId, 5],
+    [baseItem2.variantId, 5],
+  ]);
+
   it('calculates empty cart correctly with zero totals and threshold remaining', () => {
     const result = pricingService.calculate([]);
 
@@ -47,7 +52,7 @@ describe('PricingService - Server-Authoritative Commerce Calculations', () => {
     // Below ₹500 (50000 paise) threshold -> standard shipping 5000 paise (₹50.00)
     // 5% GST: 30000 * 0.05 = 1500 paise (₹15.00)
     // Grand total: 30000 + 1500 + 5000 = 36500 paise (₹365.00)
-    const result = pricingService.calculate([baseItem1]);
+    const result = pricingService.calculate([baseItem1], null, taxRates);
 
     expect(result.lineItems).toHaveLength(1);
     expect(result.lineItems[0].lineTotalCents).toBe(30000);
@@ -63,7 +68,7 @@ describe('PricingService - Server-Authoritative Commerce Calculations', () => {
     // Free shipping threshold reached -> shipping 0
     // 5% GST: 55000 * 0.05 = 2750 paise (₹27.50)
     // Grand total: 55000 + 2750 + 0 = 57750 paise (₹577.50)
-    const result = pricingService.calculate([baseItem1, baseItem2]);
+    const result = pricingService.calculate([baseItem1, baseItem2], null, taxRates);
 
     expect(result.breakdown.subtotalCents).toBe(55000);
     expect(result.breakdown.shippingCents).toBe(0);
@@ -88,7 +93,7 @@ describe('PricingService - Server-Authoritative Commerce Calculations', () => {
       maxDiscountCents: 5000,
     };
 
-    const result = pricingService.calculate([baseItem1, baseItem2], coupon);
+    const result = pricingService.calculate([baseItem1, baseItem2], coupon, taxRates);
 
     expect(result.breakdown.couponCode).toBe('FESTIVE20');
     expect(result.breakdown.couponDiscountCents).toBe(5000);
@@ -112,7 +117,7 @@ describe('PricingService - Server-Authoritative Commerce Calculations', () => {
       maxDiscountCents: null,
     };
 
-    const result = pricingService.calculate([baseItem1], coupon);
+    const result = pricingService.calculate([baseItem1], coupon, taxRates);
 
     expect(result.breakdown.couponCode).toBe('SAVE50');
     expect(result.breakdown.couponDiscountCents).toBe(5000);
@@ -130,11 +135,15 @@ describe('PricingService - Server-Authoritative Commerce Calculations', () => {
       maxDiscountCents: null,
     };
 
-    const result = pricingService.calculate([baseItem1], coupon);
+    const result = pricingService.calculate([baseItem1], coupon, taxRates);
 
     expect(result.breakdown.couponCode).toBeUndefined();
     expect(result.breakdown.couponDiscountCents).toBe(0);
     expect(result.breakdown.subtotalCents).toBe(30000);
+  });
+
+  it('rejects non-empty pricing without authoritative tax configuration', () => {
+    expect(() => pricingService.calculate([baseItem1])).toThrow('TAX_CONFIGURATION_MISSING');
   });
 
   it('provides MAX_QUANTITY_PER_VARIANT matching constant 10', () => {

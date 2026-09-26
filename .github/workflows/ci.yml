@@ -1,5 +1,7 @@
 name: CI
+# Phase 4 final-audit verification
 on:
+  workflow_dispatch:
   push:
     branches: ["**"]
   pull_request:
@@ -32,6 +34,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=low || true
+      - run: npm run build --workspace=@seethapaati/contracts
       - run: npm run prisma:generate --workspace=@seethapaati/api
       - run: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
       - run: npm run typecheck --workspace=@seethapaati/api

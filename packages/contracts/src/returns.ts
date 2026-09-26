@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const ReturnReasonSchema = z.enum(['DAMAGED', 'WRONG_ITEM', 'QUALITY_ISSUE', 'OTHER']);
+export const ReturnConditionSchema = z.enum(['SEALED_INTACT', 'DAMAGED_OPENED']);
 export const ReturnStatusSchema = z.enum([
   'REQUESTED', 'APPROVED', 'PICKED_UP', 'RECEIVED', 'INSPECTED',
   'REFUND_ELIGIBLE', 'COMPLETED', 'REJECTED', 'CANCELLED',
@@ -21,6 +22,10 @@ export const CreateReturnRequestSchema = z.object({
 export const ReturnTransitionRequestSchema = z.object({
   status: ReturnStatusSchema,
   staffNotes: z.string().trim().max(2000).optional(),
+  inspection: z.array(z.object({
+    returnItemId: z.string().uuid(),
+    condition: ReturnConditionSchema,
+  })).min(1).optional(),
 });
 
 export const CreateRefundRequestSchema = z.object({

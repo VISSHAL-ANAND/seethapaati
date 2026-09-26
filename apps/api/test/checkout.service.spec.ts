@@ -10,6 +10,7 @@ import { PricingService } from '../src/modules/pricing/pricing.service';
 import { InventoryService } from '../src/modules/inventory/inventory.service';
 import { OrderNumberService } from '../src/modules/checkout/order-number.service';
 import { RazorpayAdapter } from '../src/modules/payments/razorpay.adapter';
+import { TaxConfigurationService } from '../src/modules/invoicing/tax-configuration.service';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 
 describe('CheckoutService - Orchestration & Integrity', () => {
@@ -19,6 +20,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
   let inventoryService: any;
   let orderNumberService: any;
   let razorpayAdapter: any;
+  let taxConfig: any;
 
   const userId = 'u1111111-1111-1111-1111-111111111111';
   const cartId = 'c1111111-1111-1111-1111-111111111111';
@@ -88,6 +90,10 @@ describe('CheckoutService - Orchestration & Integrity', () => {
       generateOrderNumber: jest.fn().mockResolvedValue('SP-000001'),
     };
 
+    taxConfig = {
+      getRate: jest.fn().mockResolvedValue({ taxRatePercent: 5, hsnCode: '0910' }),
+    };
+
     razorpayAdapter = {
       getKeyId: jest.fn().mockReturnValue('rzp_test_key'),
       createOrder: jest.fn().mockResolvedValue({ gatewayOrderId: 'order_rzp_123' }),
@@ -100,6 +106,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
       inventoryService as unknown as InventoryService,
       orderNumberService as unknown as OrderNumberService,
       razorpayAdapter as unknown as RazorpayAdapter,
+      taxConfig as unknown as TaxConfigurationService,
     );
   });
 
@@ -128,6 +135,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
           addressLine1: '123 Temple St',
           city: 'Chennai',
           state: 'TN',
+          stateCode: 'TN',
           postalCode: '600001',
           country: 'IN',
         },
@@ -163,6 +171,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             variantId: 'var_1',
             quantity: 2,
             variant: {
+              hsnCode: '0910',
               sku: 'PEPPER-100G',
               packType: 'Pouch',
               weightGrams: 100,
@@ -189,6 +198,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
           addressLine1: '123 Temple St',
           city: 'Chennai',
           state: 'TN',
+          stateCode: 'TN',
           postalCode: '600001',
           country: 'IN',
         },
@@ -232,6 +242,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             addressLine1: '123 Temple St',
             city: 'Chennai',
             state: 'TN',
+            stateCode: 'TN',
             postalCode: '600001',
             country: 'IN',
           },
@@ -258,6 +269,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             addressLine1: '123 Temple St',
             city: 'Chennai',
             state: 'TN',
+            stateCode: 'TN',
             postalCode: '600001',
             country: 'IN',
           },
@@ -285,6 +297,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             addressLine1: 'Street',
             city: 'City',
             state: 'State',
+            stateCode: 'ST',
             postalCode: '1234',
             country: 'IN',
           },
@@ -310,6 +323,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             addressLine1: 'Street',
             city: 'City',
             state: 'State',
+            stateCode: 'ST',
             postalCode: '1234',
             country: 'IN',
           },
@@ -341,6 +355,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             addressLine1: 'Street',
             city: 'City',
             state: 'State',
+            stateCode: 'ST',
             postalCode: '1234',
             country: 'IN',
           },
@@ -360,6 +375,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             variantId: 'var_1',
             quantity: 2,
             variant: {
+              hsnCode: '0910',
               sku: 'PEPPER-100G',
               packType: 'Pouch',
               weightGrams: 100,
@@ -384,6 +400,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
           addressLine1: '45 Agrahara St',
           city: 'Madurai',
           state: 'TN',
+          stateCode: 'TN',
           postalCode: '625001',
           country: 'IN',
         },
@@ -442,6 +459,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             variantId: 'var_1',
             quantity: 1,
             variant: {
+              hsnCode: '0910',
               sku: 'PEPPER-100G',
               packType: 'Pouch',
               weightGrams: 100,
@@ -466,6 +484,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             addressLine1: 'Street',
             city: 'City',
             state: 'TN',
+            stateCode: 'TN',
             postalCode: '600001',
             country: 'IN',
           },
@@ -492,6 +511,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             variantId: 'var_1',
             quantity: 1,
             variant: {
+              hsnCode: '0910',
               sku: 'ITEM-1',
               packType: 'Pouch',
               weightGrams: 100,
@@ -504,6 +524,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
             variantId: 'var_2',
             quantity: 1,
             variant: {
+              hsnCode: '0910',
               sku: 'ITEM-2',
               packType: 'Pouch',
               weightGrams: 100,
@@ -540,6 +561,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
           addressLine1: 'Street',
           city: 'City',
           state: 'State',
+          stateCode: 'ST',
           postalCode: '1234',
           country: 'IN',
         },

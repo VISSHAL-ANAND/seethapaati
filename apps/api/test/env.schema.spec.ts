@@ -61,6 +61,10 @@ describe('EnvSchema - Configuration Validation', () => {
       JWT_SECRET: 'a_very_secure_production_jwt_secret_at_least_32_characters_long',
       SELLER_GSTIN: '33ABCDE1234F1Z5',
       SELLER_STATE_CODE: '33',
+      SELLER_LEGAL_NAME: 'Example Seller Legal Entity',
+      SELLER_ADDRESS_LINE1: '1 Test Street',
+      SELLER_CITY: 'Coimbatore',
+      SELLER_PINCODE: '641001',
     });
 
     expect(validProd.NODE_ENV).toBe('production');
