@@ -27,6 +27,8 @@ export const EnvSchema = z
     RAZORPAY_KEY_SECRET: z.string().default('rzp_secret_placeholder'),
     RAZORPAY_WEBHOOK_SECRET: z.string().default('rzp_webhook_placeholder'),
     RESERVATION_TTL_MINUTES: z.coerce.number().int().positive().default(15),
+    RESEND_API_KEY: z.string().optional(),
+    EMAIL_FROM: z.string().email().default('onboarding@resend.dev'),
 
     // Statutory Seller Configuration for Invoicing & GST
     SELLER_LEGAL_NAME: z.string().min(1).default('Seethapaati Foods Private Limited'),
@@ -41,6 +43,9 @@ export const EnvSchema = z
     SELLER_PINCODE: z.string().regex(/^\d{6}$/, 'Pincode must be 6 digits').default('600004'),
   })
   .superRefine((data, ctx) => {
+    if ((data.NODE_ENV === 'production' || data.NODE_ENV === 'staging') && !data.RESEND_API_KEY) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['RESEND_API_KEY'], message: 'RESEND_API_KEY is required in production/staging' });
+    }
     if (data.NODE_ENV === 'production') {
       if (
         data.JWT_SECRET === 'development_jwt_secret_must_be_changed_in_prod' ||
