@@ -11,6 +11,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { PaymentsService } from './payments.service';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { OutboxService } from '../invoicing/outbox.service';
+import { randomUUID } from 'crypto';
 
 export interface WebhookProcessingResult {
   success: boolean;
@@ -79,42 +80,40 @@ export class WebhookService {
       payload.id ||
       (paymentEntity ? `${paymentEntity.id}_${eventType}` : `evt_${Date.now()}_${Math.random()}`);
 
-    // 3. Webhook idempotency guard
-    const existingEvent = await this.prisma.paymentWebhookEvent.findUnique({
-      where: { eventId },
-    });
+    // 3. Webhook idempotency + crash-safe lease guard
+    let existingEvent = await this.prisma.paymentWebhookEvent.findUnique({ where: { eventId } });
 
-    if (existingEvent && existingEvent.processed) {
-      this.logger.log(`Duplicate webhook event ${eventId} already processed, skipping`);
-      return {
-        success: true,
-        duplicate: true,
-        message: 'Event already processed',
-      };
+    if (existingEvent?.processed) {
+      this.logger.log('Duplicate webhook event ' + eventId + ' already processed, skipping');
+      return { success: true, duplicate: true, message: 'Event already processed' };
     }
 
     if (!existingEvent) {
       try {
-        await this.prisma.paymentWebhookEvent.create({
-          data: {
-            gateway: 'RAZORPAY',
-            eventId,
-            eventType,
-            payload,
-            processed: false,
-          },
+        existingEvent = await this.prisma.paymentWebhookEvent.create({
+          data: { gateway: 'RAZORPAY', eventId, eventType, payload, processed: false },
         });
       } catch (err: any) {
-        if (err.code === 'P2002') {
-          this.logger.warn(`Duplicate webhook event ${eventId} race condition caught (P2002)`);
-          return {
-            success: true,
-            duplicate: true,
-            message: 'Event already processed or being processed',
-          };
-        }
-        throw err;
+        if (err?.code !== 'P2002') throw err;
+        existingEvent = await this.prisma.paymentWebhookEvent.findUnique({ where: { eventId } });
       }
+    }
+
+    if (!existingEvent) throw new BadRequestException({ error: 'WEBHOOK_EVENT_INITIALIZATION_FAILED' });
+
+    const processingToken = randomUUID();
+    const claimed = await this.prisma.paymentWebhookEvent.updateMany({
+      where: {
+        eventId, processed: false,
+        OR: [{ processingLeaseUntil: null }, { processingLeaseUntil: { lt: new Date() } }],
+      },
+      data: { processingToken, processingLeaseUntil: new Date(Date.now() + 2 * 60 * 1000) },
+    });
+
+    if (claimed.count !== 1) {
+      const current = await this.prisma.paymentWebhookEvent.findUnique({ where: { eventId } });
+      if (current?.processed) return { success: true, duplicate: true, message: 'Event already processed' };
+      return { success: true, duplicate: true, message: 'Event is already being processed' };
     }
 
     // 4. Dispatch based on event type
@@ -132,7 +131,7 @@ export class WebhookService {
         this.logger.log(`Unhandled webhook event type: ${eventType}`);
         await this.prisma.paymentWebhookEvent.update({
           where: { eventId },
-          data: { processed: true, processedAt: new Date() },
+          data: { processed: true, processedAt: new Date(), processingLeaseUntil: null, processingToken: null },
         });
         return { success: true, message: `Event ${eventType} received but no action required` };
     }
@@ -180,7 +179,7 @@ export class WebhookService {
       this.logger.log(`Payment ${payment.id} for order ${payment.orderId} already CAPTURED, skipping duplicate`);
       await this.prisma.paymentWebhookEvent.update({
         where: { eventId },
-        data: { processed: true, processedAt: new Date() },
+        data: { processed: true, processedAt: new Date(), processingLeaseUntil: null, processingToken: null },
       });
       return {
         success: true,
@@ -226,7 +225,7 @@ export class WebhookService {
       if (lockedPayment.status === PaymentStatus.CAPTURED) {
         await tx.paymentWebhookEvent.update({
           where: { eventId },
-          data: { processed: true, processedAt: new Date() },
+          data: { processed: true, processedAt: new Date(), processingLeaseUntil: null, processingToken: null },
         });
         return {
           orderId: payment.orderId,
@@ -378,7 +377,7 @@ export class WebhookService {
       // 8. Mark webhook event as processed
       await tx.paymentWebhookEvent.update({
         where: { eventId },
-        data: { processed: true, processedAt: new Date() },
+        data: { processed: true, processedAt: new Date(), processingLeaseUntil: null, processingToken: null },
       });
 
       return {
@@ -427,7 +426,7 @@ export class WebhookService {
       this.logger.warn(`Failed payment webhook for unknown gateway order: ${gatewayOrderId}`);
       await this.prisma.paymentWebhookEvent.update({
         where: { eventId },
-        data: { processed: true, processedAt: new Date() },
+        data: { processed: true, processedAt: new Date(), processingLeaseUntil: null, processingToken: null },
       });
       return { success: false, message: 'Payment record not found' };
     }
@@ -470,7 +469,7 @@ export class WebhookService {
 
       await tx.paymentWebhookEvent.update({
         where: { eventId },
-        data: { processed: true, processedAt: new Date() },
+        data: { processed: true, processedAt: new Date(), processingLeaseUntil: null, processingToken: null },
       });
     });
 
@@ -515,7 +514,7 @@ export class WebhookService {
 
     await this.prisma.paymentWebhookEvent.update({
       where: { eventId },
-      data: { processed: true, processedAt: new Date() },
+      data: { processed: true, processedAt: new Date(), processingLeaseUntil: null, processingToken: null },
     });
 
     return { success: true, message: 'Payment authorized recorded' };
