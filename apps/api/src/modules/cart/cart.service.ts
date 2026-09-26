@@ -8,6 +8,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService, CartItemInput } from '../pricing/pricing.service';
+import { TaxConfigurationService } from '../invoicing/tax-configuration.service';
 import {
   AddCartItemRequest,
   UpdateCartItemRequest,
@@ -31,6 +32,7 @@ export class CartService {
   constructor(
     private prisma: PrismaService,
     private pricing: PricingService,
+    private taxConfig: TaxConfigurationService,
   ) {}
 
   /**
@@ -90,7 +92,7 @@ export class CartService {
           include: {
             variant: {
               include: {
-                product: { select: { name: true } },
+                product: { select: { name: true, hsnCode: true } },
                 inventory: { select: { quantityAvailable: true, quantityReserved: true } },
               },
             },
@@ -134,6 +136,16 @@ export class CartService {
         unitPriceCents: item.variant.priceCents, // DB price — not client-supplied
       }));
 
+    const taxRatesByVariant = new Map<string, number>();
+    for (const item of cart.items.filter((item) => item.variant.status === 'ACTIVE')) {
+      const hsnCode = item.variant.product.hsnCode;
+      if (!hsnCode) {
+        throw new BadRequestException({ error: 'TAX_CONFIGURATION_MISSING', message: 'Active cart items require an HSN code.' });
+      }
+      const taxRate = await this.taxConfig.getRate(hsnCode);
+      taxRatesByVariant.set(item.variantId, Number(taxRate.ratePercent));
+    }
+
     const { lineItems, breakdown } = this.pricing.calculate(
       pricingInputs,
       couponData
@@ -145,6 +157,7 @@ export class CartService {
             maxDiscountCents: couponData.maxDiscountCents,
           }
         : null,
+      taxRatesByVariant,
     );
 
     return { cartId: cart.id, items: lineItems, pricing: breakdown };
