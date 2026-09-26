@@ -50,13 +50,14 @@ export class ReturnService {
        SELECT oi.variant_id FROM order_items oi WHERE oi.id=${item.orderItemId} FOR UPDATE
       `;
       if(!inventory?.variant_id) throw new BadRequestException({error:'RETURN_INVENTORY_VARIANT_MISSING'});
-      await tx.$executeRaw`
+      const restocked=await tx.$executeRaw`
        UPDATE inventory
        SET quantity_available=quantity_available+${item.quantity},
            version=version+1,
            updated_at=NOW()
        WHERE variant_id=${inventory.variant_id}
       `;
+      if(restocked!==1) throw new BadRequestException({error:'RETURN_INVENTORY_MISSING'});
       await tx.inventoryMovement.create({
        data:{
         variantId:inventory.variant_id,
