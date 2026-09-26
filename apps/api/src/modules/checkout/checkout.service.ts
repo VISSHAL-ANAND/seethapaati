@@ -289,7 +289,7 @@ export class CheckoutService {
         unitPriceCents: item.variant.priceCents,
       }));
 
-      const { lineItems, breakdown: computedBreakdown } = this.pricingService.calculate(pricingInputs, couponInput);
+      const { lineItems, breakdown: computedBreakdown } = this.pricingService.calculate(pricingInputs, couponInput, new Map(cart.items.map((item) => [item.variantId, taxRates.get(item.variant.hsnCode!)!])) );
 
       if (computedBreakdown.grandTotalCents <= 0) {
         throw new BadRequestException({
