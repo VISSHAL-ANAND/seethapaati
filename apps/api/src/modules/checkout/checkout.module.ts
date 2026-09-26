@@ -8,7 +8,7 @@ import { OrderNumberService } from './order-number.service';
 import { CheckoutController } from './checkout.controller';
 
 @Module({
-  imports: [PrismaModule, PricingModule, InventoryModule, PaymentsModule],
+  imports: [PrismaModule, PricingModule, InventoryModule, PaymentsModule, InvoicingModule],
   controllers: [CheckoutController],
   providers: [CheckoutService, OrderNumberService],
   exports: [CheckoutService, OrderNumberService],
