@@ -66,7 +66,7 @@ export class OutboxService {
     }, tx);
   }
 
-  async claimBatch(limit = 10): Promise<ClaimedOutboxEvent[]> {
+  async claimBatch(limit = 10, eventTypes?: string[]): Promise<ClaimedOutboxEvent[]> {
     const leaseUntil = new Date(Date.now() + this.leaseMs);
     const leasedBy = randomUUID();
     return this.prisma.$transaction(async (tx) => {
@@ -78,8 +78,10 @@ export class OutboxService {
                payload, retry_count, max_retries
         FROM outbox_events
         WHERE
-          (status = 'PENDING' AND (next_retry_at IS NULL OR next_retry_at <= NOW()))
-          OR (status = 'PROCESSING' AND leased_until < NOW())
+          (${eventTypes?.length ? Prisma.join(eventTypes) : Prisma.sql`TRUE`} IS NOT NULL)
+          AND (${eventTypes?.length ? Prisma.sql`event_type IN (${Prisma.join(eventTypes)})` : Prisma.sql`TRUE`})
+          AND ((status = 'PENDING' AND (next_retry_at IS NULL OR next_retry_at <= NOW()))
+          OR (status = 'PROCESSING' AND leased_until < NOW()))
         ORDER BY created_at ASC
         LIMIT ${limit}
         FOR UPDATE SKIP LOCKED
