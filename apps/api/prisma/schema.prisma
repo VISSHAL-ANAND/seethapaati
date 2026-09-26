@@ -35,6 +35,8 @@ model User {
   orders          Order[]
   auditLogs       AuditLog[]
   returns         Return[]
+  notifications   Notification[]
+  notificationPreference NotificationPreference?
 
   @@map("users")
 }
@@ -361,6 +363,7 @@ model Order {
   shipment      Shipment?
   returns       Return[]
   refunds       Refund[]
+  notifications Notification[]
 
   @@index([orderNumber])
   @@index([userId])
@@ -617,6 +620,57 @@ enum OutboxStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum NotificationChannel {
+  EMAIL
+}
+
+model Notification {
+  id                String             @id @default(uuid())
+  userId            String             @map("user_id")
+  orderId           String?            @map("order_id")
+  outboxEventId     String             @unique @map("outbox_event_id")
+  channel           NotificationChannel @default(EMAIL)
+  eventType         String             @map("event_type")
+  recipient         String
+  subject           String
+  status            NotificationStatus @default(PENDING)
+  providerMessageId String?            @map("provider_message_id")
+  attemptCount      Int                @default(0) @map("attempt_count")
+  lastError         String?            @map("last_error")
+  sentAt            DateTime?          @map("sent_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([status, createdAt])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  orderUpdates    Boolean  @default(true) @map("order_updates")
+  shipmentUpdates Boolean  @default(true) @map("shipment_updates")
+  returnUpdates   Boolean  @default(true) @map("return_updates")
+  refundUpdates   Boolean  @default(true) @map("refund_updates")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
 }
 
 model OutboxEvent {

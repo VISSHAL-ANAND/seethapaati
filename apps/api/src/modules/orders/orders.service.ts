@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { OrderListQuery, UpdateOrderStatusRequest } from '@seethapaati/contracts';
+import { NotificationService } from '../notifications/notification.service';
 
 /**
  * Valid order state machine transitions.
@@ -46,6 +47,7 @@ export class OrdersService {
   constructor(
     private prisma: PrismaService,
     private inventoryService: InventoryService,
+    private notificationService: NotificationService,
   ) {}
 
   /**
@@ -215,6 +217,8 @@ export class OrdersService {
           changedBy,
         },
       });
+
+      await this.notificationService.enqueueOrderStatus(orderId, targetStatus, tx);
 
       this.logger.log(`Order ${orderId} transitioned: ${order.status} -> ${dto.status} by ${changedBy}`);
       return updated;

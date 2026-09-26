@@ -8,6 +8,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
           <Link href="/account" className="hover:text-[#B8860B]">Account</Link>
           <Link href="/account/orders" className="hover:text-[#B8860B]">Orders</Link>
           <Link href="/account/returns" className="hover:text-[#B8860B]">Returns</Link>
+          <Link href="/account/notifications" className="transition-opacity hover:opacity-60">Notifications</Link>
           <Link href="/shop" className="hover:text-[#B8860B]">Shop</Link>
           <Link href="/cart" className="hover:text-[#B8860B]">Bag</Link>
         </nav>

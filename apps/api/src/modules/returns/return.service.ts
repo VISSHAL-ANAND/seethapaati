@@ -1,12 +1,13 @@
 import {BadRequestException,Injectable,NotFoundException} from '@nestjs/common';
 import {OrderStatus,Prisma,ReturnCondition,ReturnReason,ReturnStatus} from '@prisma/client';
 import {PrismaService} from '../prisma/prisma.service';
+import {NotificationService} from '../notifications/notification.service';
 
 const transitions:Record<ReturnStatus,ReturnStatus[]>={REQUESTED:['APPROVED','REJECTED','CANCELLED'],APPROVED:['PICKED_UP','CANCELLED'],PICKED_UP:['RECEIVED'],RECEIVED:['INSPECTED'],INSPECTED:['REFUND_ELIGIBLE','REJECTED'],REFUND_ELIGIBLE:['COMPLETED'],COMPLETED:[],REJECTED:[],CANCELLED:[]};
 
 @Injectable()
 export class ReturnService {
- constructor(private readonly prisma:PrismaService){}
+ constructor(private readonly prisma:PrismaService, private readonly notifications:NotificationService){}
  async request(orderId:string,userId:string,reason:ReturnReason,items:Array<{orderItemId:string;quantity:number}>,notes?:string,evidenceUrl?:string){
   if (!items.length) throw new BadRequestException({error:'RETURN_ITEMS_REQUIRED'});
   return this.prisma.$transaction(async tx=>{
@@ -21,6 +22,7 @@ export class ReturnService {
    const [seq]=await tx.$queryRaw<Array<{value:bigint}>>`SELECT nextval('return_number_seq') value`;
    const created = await tx.return.create({data:{returnNumber:`RET-${String(Number(seq.value)).padStart(6,'0')}`,orderId,userId,reason,notes,evidenceUrl,items:{create:items.map(i=>({orderItemId:i.orderItemId,quantity:i.quantity}))}} ,include:{items:true}});
    await tx.order.updateMany({where:{id:orderId,status:OrderStatus.DELIVERED},data:{status:OrderStatus.RETURN_REQUESTED}});
+   await this.notifications.enqueueReturnStatus(created.id, orderId, ReturnStatus.REQUESTED, tx);
    return created;
   });
  }
@@ -66,15 +68,13 @@ export class ReturnService {
      await tx.inventoryMovement.create({data:{variantId:inventory.variant_id,delta:item.quantity,reason:'RESTOCK_RETURN',referenceId:item.id}});
     }
    }
-   return tx.return.update({
+   const updated = await tx.return.update({
     where:{id},
-    data:{
-     status,
-     staffNotes:staffNotes??r.staff_notes??undefined,
-     resolvedAt:['COMPLETED','REJECTED','CANCELLED'].includes(status)?new Date():undefined
-    },
+    data:{status,staffNotes:staffNotes??r.staff_notes??undefined,resolvedAt:['COMPLETED','REJECTED','CANCELLED'].includes(status)?new Date():undefined},
     include:{items:true}
    });
+   await this.notifications.enqueueReturnStatus(id, (await tx.return.findUniqueOrThrow({where:{id},select:{orderId:true}})).orderId, status, tx);
+   return updated;
   });
  }
 }

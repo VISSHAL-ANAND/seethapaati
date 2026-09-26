@@ -10,6 +10,7 @@ import { RazorpayAdapter } from '../src/modules/payments/razorpay.adapter';
 import { OrdersService } from '../src/modules/orders/orders.service';
 import { TaxConfigurationService } from '../src/modules/invoicing/tax-configuration.service';
 import { OutboxService } from '../src/modules/invoicing/outbox.service';
+import { NotificationService } from '../src/modules/notifications/notification.service';
 import { ConfigService } from '@nestjs/config';
 import { DiscountType, OrderStatus } from '@prisma/client';
 import { BadGatewayException, BadRequestException } from '@nestjs/common';
@@ -27,6 +28,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
   let webhookService: WebhookService;
   let ordersService: OrdersService;
   let taxConfig: TaxConfigurationService;
+  let notificationService: NotificationService;
 
   const testSuffix = Date.now().toString().slice(-6);
   let userId: string;
@@ -85,15 +87,20 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
       taxConfig,
     );
 
+    notificationService = {
+      enqueueOrderStatus: jest.fn().mockResolvedValue(undefined),
+    } as unknown as NotificationService;
+
     webhookService = new WebhookService(
       prisma,
       razorpayAdapter,
       inventoryService,
       paymentsService,
       new OutboxService(prisma),
+      notificationService,
     );
 
-    ordersService = new OrdersService(prisma, inventoryService);
+    ordersService = new OrdersService(prisma, inventoryService, notificationService);
 
     // Seed test user
     const user = await prisma.user.create({

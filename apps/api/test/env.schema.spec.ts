@@ -65,6 +65,7 @@ describe('EnvSchema - Configuration Validation', () => {
       SELLER_ADDRESS_LINE1: '1 Test Street',
       SELLER_CITY: 'Coimbatore',
       SELLER_PINCODE: '641001',
+      RESEND_API_KEY: 're_test_phase9_ci',
     });
 
     expect(validProd.NODE_ENV).toBe('production');

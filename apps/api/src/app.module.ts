@@ -23,6 +23,7 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { InvoicingModule } from './modules/invoicing/invoicing.module';
 import { FulfillmentModule } from './modules/fulfillment/fulfillment.module';
 import { ReturnsModule } from './modules/returns/returns.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { ReturnsModule } from './modules/returns/returns.module';
     InvoicingModule,
     FulfillmentModule,
     ReturnsModule,
+    NotificationsModule,
   ],
   providers: [
     {

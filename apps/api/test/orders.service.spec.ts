@@ -13,6 +13,7 @@ describe('OrdersService - Queries, Transitions & RBAC', () => {
   let service: OrdersService;
   let prisma: any;
   let inventoryService: any;
+  let notificationService: any;
 
   const userId = 'u1111111-1111-1111-1111-111111111111';
   const orderId = 'o1111111-1111-1111-1111-111111111111';
@@ -34,10 +35,14 @@ describe('OrdersService - Queries, Transitions & RBAC', () => {
     inventoryService = {
       cancelReservationsBySession: jest.fn().mockResolvedValue(1),
     };
+    notificationService = {
+      enqueueOrderStatus: jest.fn().mockResolvedValue(undefined),
+    };
 
     service = new OrdersService(
       prisma as unknown as PrismaService,
       inventoryService as unknown as InventoryService,
+      notificationService,
     );
   });
 

@@ -20,7 +20,7 @@ export class InvoicingWorker implements OnModuleDestroy {
     if (this.running || this.stopped) return;
     this.running = true;
     try {
-      const events = await this.outbox.claimBatch(10);
+      const events = await this.outbox.claimBatch(10, ['INVOICE_GENERATE']);
       const workerId = randomUUID();
       for (const event of events) {
         try {
