@@ -10,6 +10,7 @@ import { PricingService } from '../src/modules/pricing/pricing.service';
 import { InventoryService } from '../src/modules/inventory/inventory.service';
 import { OrderNumberService } from '../src/modules/checkout/order-number.service';
 import { RazorpayAdapter } from '../src/modules/payments/razorpay.adapter';
+import { TaxConfigurationService } from '../src/modules/invoicing/tax-configuration.service';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 
 describe('CheckoutService - Orchestration & Integrity', () => {
@@ -19,6 +20,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
   let inventoryService: any;
   let orderNumberService: any;
   let razorpayAdapter: any;
+  let taxConfig: any;
 
   const userId = 'u1111111-1111-1111-1111-111111111111';
   const cartId = 'c1111111-1111-1111-1111-111111111111';
@@ -88,6 +90,11 @@ describe('CheckoutService - Orchestration & Integrity', () => {
       generateOrderNumber: jest.fn().mockResolvedValue('SP-000001'),
     };
 
+    taxConfig = {
+      getTaxRateForHsn: jest.fn().mockResolvedValue({ ratePercent: 5, hsnCode: '0910' }),
+      getTaxRateMapForHsns: jest.fn().mockResolvedValue(new Map([['0910', 5], ['2103', 12], ['2001', 12], ['2106', 5]])),
+    };
+
     razorpayAdapter = {
       getKeyId: jest.fn().mockReturnValue('rzp_test_key'),
       createOrder: jest.fn().mockResolvedValue({ gatewayOrderId: 'order_rzp_123' }),
@@ -100,6 +107,7 @@ describe('CheckoutService - Orchestration & Integrity', () => {
       inventoryService as unknown as InventoryService,
       orderNumberService as unknown as OrderNumberService,
       razorpayAdapter as unknown as RazorpayAdapter,
+      taxConfig as unknown as TaxConfigurationService,
     );
   });
 
