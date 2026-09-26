@@ -91,9 +91,14 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
       inventoryService,
       paymentsService,
       new OutboxService(prisma),
+      {
+        enqueueOrderStatus: jest.fn().mockResolvedValue(undefined),
+      },
     );
 
-    ordersService = new OrdersService(prisma, inventoryService);
+    ordersService = new OrdersService(prisma, inventoryService, {
+      enqueueOrderStatus: jest.fn().mockResolvedValue(undefined),
+    });
 
     // Seed test user
     const user = await prisma.user.create({
