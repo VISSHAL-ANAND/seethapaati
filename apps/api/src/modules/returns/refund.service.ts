@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus, PaymentStatus, Prisma, RefundReason, RefundStatus, ReturnStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus, RefundReason, RefundStatus, ReturnStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RazorpayAdapter } from '../payments/razorpay.adapter';
