@@ -15,7 +15,7 @@ export class ShippingService {
     return this.prisma.$transaction(async tx=>{
       const order=await tx.order.findUnique({where:{id:orderId}});
       if(!order) throw new NotFoundException({error:'ORDER_NOT_FOUND'});
-      if(![OrderStatus.PAID,OrderStatus.PROCESSING,OrderStatus.PACKED].includes(order.status)) throw new BadRequestException({error:'ORDER_NOT_SHIPPABLE'});
+      if(!([OrderStatus.PAID,OrderStatus.PROCESSING,OrderStatus.PACKED] as OrderStatus[]).includes(order.status)) throw new BadRequestException({error:'ORDER_NOT_SHIPPABLE'});
       const existing=await tx.shipment.findUnique({where:{orderId}});
       if(existing) return existing;
       return tx.shipment.create({data:{orderId,carrier,trackingNumber,trackingUrl,status:trackingNumber?'AWB_ASSIGNED':'CREATED',
