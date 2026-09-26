@@ -1,5 +1,5 @@
 import {BadRequestException,Injectable,NotFoundException} from '@nestjs/common';
-import {Prisma,ReturnCondition,ReturnReason,ReturnStatus} from '@prisma/client';
+import {OrderStatus,Prisma,ReturnCondition,ReturnReason,ReturnStatus} from '@prisma/client';
 import {PrismaService} from '../prisma/prisma.service';
 
 const transitions:Record<ReturnStatus,ReturnStatus[]>={REQUESTED:['APPROVED','REJECTED','CANCELLED'],APPROVED:['PICKED_UP','CANCELLED'],PICKED_UP:['RECEIVED'],RECEIVED:['INSPECTED'],INSPECTED:['REFUND_ELIGIBLE','REJECTED'],REFUND_ELIGIBLE:['COMPLETED'],COMPLETED:[],REJECTED:[],CANCELLED:[]};
@@ -19,7 +19,9 @@ export class ReturnService {
    if(locked.length!==items.length) throw new BadRequestException({error:'RETURN_ITEM_NOT_FOUND'});
    for(const i of items){if(i.quantity<=0)throw new BadRequestException({error:'INVALID_RETURN_QUANTITY'});const [row]=await tx.$queryRaw<Array<{purchased:number;returned:number}>>`SELECT oi.quantity AS purchased, COALESCE((SELECT SUM(ri.quantity) FROM return_items ri JOIN returns r ON r.id=ri.return_id WHERE ri.order_item_id=oi.id AND r.status NOT IN ('REJECTED','CANCELLED','COMPLETED')),0)::int AS returned FROM order_items oi WHERE oi.id=${i.orderItemId} FOR UPDATE`;if(!row||i.quantity>row.purchased-row.returned)throw new BadRequestException({error:'RETURN_QUANTITY_EXCEEDED'});}
    const [seq]=await tx.$queryRaw<Array<{value:bigint}>>`SELECT nextval('return_number_seq') value`;
-   return tx.return.create({data:{returnNumber:`RET-${String(Number(seq.value)).padStart(6,'0')}`,orderId,userId,reason,notes,evidenceUrl,items:{create:items.map(i=>({orderItemId:i.orderItemId,quantity:i.quantity}))}} ,include:{items:true}});
+   const created = await tx.return.create({data:{returnNumber:`RET-${String(Number(seq.value)).padStart(6,'0')}`,orderId,userId,reason,notes,evidenceUrl,items:{create:items.map(i=>({orderItemId:i.orderItemId,quantity:i.quantity}))}} ,include:{items:true}});
+   await tx.order.updateMany({where:{id:orderId,status:OrderStatus.DELIVERED},data:{status:OrderStatus.RETURN_REQUESTED}});
+   return created;
   });
  }
  async listForUser(userId:string,readAll=false){return this.prisma.return.findMany({where:readAll?undefined:{userId},include:{items:true,refunds:true},orderBy:{createdAt:'desc'}})}
