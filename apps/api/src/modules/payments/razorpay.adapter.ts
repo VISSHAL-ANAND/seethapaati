@@ -65,8 +65,12 @@ export class RazorpayAdapter implements PaymentGatewayAdapter {
       const items = result?.items ?? [];
       const found = items.find((r: any) => r?.notes?.refundId === refundId);
       return found ? { id: found.id, status: found.status } : null;
-    } catch {
-      return null;
+    } catch (err) {
+      this.logger.error(`Razorpay refund reconciliation failed: ${(err as Error).message}`);
+      throw new BadGatewayException({
+        error: 'PAYMENT_REFUND_RECONCILIATION_ERROR',
+        message: 'Could not reconcile the refund with Razorpay.',
+      });
     }
   }
 
