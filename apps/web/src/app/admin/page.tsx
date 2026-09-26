@@ -10,7 +10,8 @@ type Order = {
 };
 type OrdersResponse = { items: Order[]; total: number; page: number; limit: number; totalPages: number };
 type Shipment = { id: string; status: string; carrier: string; trackingNumber?: string | null; trackingUrl?: string | null };
-type Return = { id: string; returnNumber: string; orderId: string; status: string; reason: string; createdAt: string };
+type ReturnItem = { id: string; orderItemId: string; quantity: number; condition?: 'SEALED_INTACT' | 'DAMAGED_OPENED' | null };
+type Return = { id: string; returnNumber: string; orderId: string; status: string; reason: string; createdAt: string; items: ReturnItem[] };
 
 const orderTransitions: Record<string, string[]> = {
   PAID: ['PROCESSING', 'CANCELLED'],
@@ -34,6 +35,7 @@ export default function AdminOperationsPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [inspection, setInspection] = useState<Record<string, 'SEALED_INTACT' | 'DAMAGED_OPENED'>>({});
 
   async function load() {
     setError('');
@@ -65,7 +67,12 @@ export default function AdminOperationsPage() {
     try {
       await fetchApi('/orders/' + selected.id + '/status', {
         method: 'PATCH',
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          ...(status === 'INSPECTED'
+            ? { inspection: ret.items.map((item) => ({ returnItemId: item.id, condition: inspection[item.id] })) }
+            : {}),
+        }),
       });
       setMessage('Order status updated.');
       await load();
@@ -172,9 +179,31 @@ export default function AdminOperationsPage() {
           {returns.length === 0 ? <p className="py-10 text-sm text-[#181513]/55">No return requests.</p> : returns.map((ret) => {
             const next = ret.status === 'REQUESTED' ? ['APPROVED', 'REJECTED'] : ret.status === 'APPROVED' ? ['PICKED_UP', 'CANCELLED'] : ret.status === 'PICKED_UP' ? ['RECEIVED'] : ret.status === 'RECEIVED' ? ['INSPECTED'] : ret.status === 'INSPECTED' ? ['REFUND_ELIGIBLE', 'REJECTED'] : ret.status === 'REFUND_ELIGIBLE' ? ['COMPLETED'] : [];
             return <div key={ret.id} className="grid gap-3 py-5 md:grid-cols-[1fr_auto_auto] md:items-center md:gap-8">
-              <div><p className="font-serif text-xl">{ret.returnNumber}</p><p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-[#181513]/45">{ret.reason} · {ret.status}</p></div>
+              <div>
+                <p className="font-serif text-xl">{ret.returnNumber}</p>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-[#181513]/45">{ret.reason} · {ret.status}</p>
+                {ret.status === 'RECEIVED' && (
+                  <div className="mt-4 space-y-2">
+                    {ret.items.map((item, index) => (
+                      <label key={item.id} className="flex items-center gap-3 text-xs">
+                        <span className="text-[#181513]/55">Item {index + 1} · ×{item.quantity}</span>
+                        <select value={inspection[item.id] || ''} onChange={(e) => setInspection((current) => ({ ...current, [item.id]: e.target.value as 'SEALED_INTACT' | 'DAMAGED_OPENED' }))} className="border-b border-[#181513]/25 bg-transparent py-1 text-xs outline-none">
+                          <option value="">Inspect condition</option>
+                          <option value="SEALED_INTACT">Sealed / intact</option>
+                          <option value="DAMAGED_OPENED">Damaged / opened</option>
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
               <span className="text-xs text-[#181513]/50">{new Date(ret.createdAt).toLocaleDateString('en-IN')}</span>
-              <div className="flex flex-wrap gap-2">{next.map((status) => <button disabled={busy} key={status} onClick={() => updateReturn(ret, status)} className="border border-[#181513] px-3 py-2 text-[10px] uppercase tracking-[0.15em] disabled:opacity-40">{status.replaceAll('_', ' ')}</button>)}</div>
+              <div className="flex flex-wrap gap-2">
+                {next.map((status) => {
+                  const inspectionIncomplete = status === 'INSPECTED' && ret.items.some((item) => !inspection[item.id]);
+                  return <button disabled={busy || inspectionIncomplete} key={status} onClick={() => updateReturn(ret, status)} className="border border-[#181513] px-3 py-2 text-[10px] uppercase tracking-[0.15em] disabled:opacity-40">{status.replaceAll('_', ' ')}</button>;
+                })}
+              </div>
             </div>;
           })}
         </div>
