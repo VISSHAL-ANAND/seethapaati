@@ -14,7 +14,7 @@ describe('CartService - Server-Authoritative Cart & Guest Merging', () => {
 
   beforeEach(() => {
     pricingService = new PricingService();
-    taxConfig = { getRate: jest.fn().mockResolvedValue({ ratePercent: 5 }) };
+    taxConfig = { getRate: jest.fn().mockResolvedValue({ taxRatePercent: 5 }) };
 
     mockPrisma = {
       cart: {
@@ -55,6 +55,7 @@ describe('CartService - Server-Authoritative Cart & Guest Merging', () => {
         sku: 'SAMB-500G',
         priceCents: 25000,
         status: 'ACTIVE',
+        hsnCode: '0910',
         product: {
           name: 'Sambar Powder',
           status: 'ACTIVE',
@@ -86,7 +87,8 @@ describe('CartService - Server-Authoritative Cart & Guest Merging', () => {
               weightGrams: 500,
               priceCents: 25000,
               status: 'ACTIVE',
-              product: { name: 'Sambar Powder', hsnCode: '0910' },
+              product: { name: 'Sambar Powder' },
+              hsnCode: '0910',
             },
           },
         ],
@@ -213,7 +215,8 @@ describe('CartService - Server-Authoritative Cart & Guest Merging', () => {
               weightGrams: 250,
               priceCents: 30000,
               status: 'ACTIVE',
-              product: { name: 'Turmeric', hsnCode: '0910' },
+              product: { name: 'Turmeric' },
+              hsnCode: '0910',
             },
           },
         ],
