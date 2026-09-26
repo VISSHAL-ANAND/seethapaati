@@ -6,7 +6,8 @@ import {
   Res,
   UsePipes,
   Req,
-  TooManyRequestsException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
@@ -95,10 +96,10 @@ export class AuthController {
     const key = `ratelimit:auth:${action}:${ip}`;
     const count = await this.redis.incr(key, windowSeconds);
     if (count > maxAttempts) {
-      throw new TooManyRequestsException({
+      throw new HttpException({
         error: 'AUTH_RATE_LIMITED',
         message: 'Too many authentication attempts. Please try again later.',
-      });
+      }, HttpStatus.TOO_MANY_REQUESTS);
     }
   }
 
