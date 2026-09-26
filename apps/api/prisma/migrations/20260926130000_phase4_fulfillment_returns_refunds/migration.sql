@@ -5,8 +5,6 @@ CREATE TYPE "RefundStatus" AS ENUM ('PENDING','PROCESSED','FAILED');
 CREATE TYPE "RefundReason" AS ENUM ('RETURN','REFUND_REQUIRED_OTHER');
 CREATE SEQUENCE IF NOT EXISTS return_number_seq START 1;
 
-ALTER TABLE "orders" ADD CONSTRAINT "orders_single_shipment_ready" CHECK (id IS NOT NULL);
-
 CREATE TABLE "shipments" (
 "id" TEXT NOT NULL PRIMARY KEY,"order_id" TEXT NOT NULL UNIQUE,"carrier" TEXT NOT NULL,
 "tracking_number" TEXT UNIQUE,"tracking_url" TEXT,"status" "ShipmentStatus" NOT NULL DEFAULT 'CREATED',
