@@ -10,6 +10,7 @@ import { RazorpayAdapter } from './razorpay.adapter';
 import { InventoryService } from '../inventory/inventory.service';
 import { PaymentsService } from './payments.service';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { OutboxService } from '../invoicing/outbox.service';
 
 export interface WebhookProcessingResult {
   success: boolean;
@@ -39,6 +40,7 @@ export class WebhookService {
     private razorpayAdapter: RazorpayAdapter,
     private inventoryService: InventoryService,
     private paymentsService: PaymentsService,
+    private outboxService: OutboxService,
   ) {}
 
   /**
@@ -346,7 +348,12 @@ export class WebhookService {
         }
       }
 
-      // 7. Mark webhook event as processed
+      // 7. Queue invoice generation atomically with payment settlement
+      if (orderFinalStatus === OrderStatus.PAID) {
+        await this.outboxService.enqueueInvoiceGeneration(payment.orderId, tx);
+      }
+
+      // 8. Mark webhook event as processed
       await tx.paymentWebhookEvent.update({
         where: { eventId },
         data: { processed: true, processedAt: new Date() },
