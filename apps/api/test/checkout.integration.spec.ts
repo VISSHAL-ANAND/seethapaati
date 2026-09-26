@@ -62,7 +62,7 @@ describe('Phase 3 End-to-End Checkout & Payment Integration Test (PostgreSQL)', 
     inventoryService = new InventoryService(prisma, configService);
     pricingService = new PricingService();
     taxConfig = new TaxConfigurationService(prisma, configService);
-    cartService = new CartService(prisma, pricingService);
+    cartService = new CartService(prisma, pricingService, taxConfig);
     orderNumberService = new OrderNumberService(prisma);
 
     razorpayAdapter = new RazorpayAdapter(configService);
