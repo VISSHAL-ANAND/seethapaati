@@ -26,14 +26,6 @@ const collections = [
     imageAlt: 'Seethapaati Premium Ceylon Tea Blend jar',
     tone: 'collection-card--tea',
   },
-  {
-    number: '04',
-    name: 'Rasam Powder',
-    note: 'A familiar favourite for the table',
-    image: '/images/masala.jpg',
-    imageAlt: 'Seethapaati spice powder',
-    tone: 'collection-card--rasam',
-  },
 ];
 
 export default function HomePage() {
