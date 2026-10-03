@@ -9,7 +9,12 @@ import { WebhookService } from './webhook.service';
 import { WebhookController } from './webhook.controller';
 
 @Module({
-  imports: [PrismaModule, InventoryModule, InvoicingModule],
+  imports: [
+    PrismaModule,
+    InventoryModule,
+    InvoicingModule,
+    NotificationsModule,
+  ],
   controllers: [WebhookController],
   providers: [PaymentsService, RazorpayAdapter, WebhookService],
   exports: [PaymentsService, RazorpayAdapter, WebhookService],
