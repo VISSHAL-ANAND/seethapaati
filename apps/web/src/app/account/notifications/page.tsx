@@ -50,7 +50,7 @@ export default function NotificationsPage() {
   }, []);
 
   return (
-    <main className="editorial-page mx-auto max-w-6xl px-6 py-16 lg:px-10">
+    <main className="editorial-page mx-auto max-w-[1280px] px-6 pb-20 pt-12 md:px-10 md:pb-28 md:pt-20">
       <div className="grid gap-16 lg:grid-cols-[1fr_320px]">
         <section>
           <p className="text-xs uppercase tracking-[0.28em] text-black/50">Account / Notifications</p>
