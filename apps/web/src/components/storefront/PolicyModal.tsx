@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 
 type PolicyModalProps = {
   title: string;
   eyebrow?: string;
   description: string;
-  children: React.ReactNode;
+  children: ReactNode;
 };
 
 export function PolicyModal({ title, eyebrow = 'Legal', description, children }: PolicyModalProps) {
