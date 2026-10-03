@@ -23,11 +23,11 @@ export default function CartPage() {
     setCart(next);
   }
 
-  if (loading) return <main className="mx-auto max-w-6xl px-6 py-32 text-center text-[10px] uppercase tracking-[0.2em]">Loading bag</main>;
+  if (loading) return <main className="editorial-page mx-auto max-w-6xl px-6 py-32 text-center text-[10px] uppercase tracking-[0.2em]">Loading bag</main>;
 
   const items = cart?.items ?? [];
   return (
-    <main className="mx-auto max-w-6xl px-6 py-16 md:py-24">
+    <main className="editorial-page mx-auto max-w-6xl px-6 py-16 md:py-24">
       <div className="flex items-end justify-between gap-6 border-b border-[#E3DFD7] pb-8">
         <div><p className="text-[10px] uppercase tracking-[0.24em] text-[#B8860B]">Your selection</p><h1 className="mt-3 font-serif text-5xl">Bag</h1></div>
         <span className="text-xs text-[#181513]/50">{items.reduce((sum, item) => sum + item.quantity, 0)} items</span>
