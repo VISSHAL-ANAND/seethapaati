@@ -34,9 +34,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="mx-auto max-w-md px-6 py-20 md:py-28">
-      <p className="text-[10px] uppercase tracking-[0.24em] text-[#B8860B]">New customer</p>
-      <h1 className="mt-4 font-serif text-5xl">Create account</h1>
+    <main className="editorial-page mx-auto max-w-md px-6 py-20 md:py-28">
+      <p className="eyebrow"><span className="eyebrow-dot" /> New customer</p>
+      <h1 className="mt-5 font-serif text-5xl font-normal tracking-[-0.05em] md:text-7xl">Create account</h1>
       <form onSubmit={submit} className="mt-10 space-y-6">
         {([['fullName','Full name','text'],['email','Email','email'],['phone','Phone','tel'],['password','Password','password']] as const).map(([key,label,type]) =>
           <label key={key} className="block text-xs uppercase tracking-[0.16em]">{label}<input required={key!=='phone'} type={type} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})} className="mt-2 w-full border-b border-[#181513]/25 bg-transparent py-3 outline-none" /></label>
