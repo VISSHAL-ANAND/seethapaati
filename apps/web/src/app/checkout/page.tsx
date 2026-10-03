@@ -79,13 +79,13 @@ export default function CheckoutPage() {
     } catch(err) { setError(err instanceof Error?err.message:'Unable to start payment'); setPaying(false); }
   }
 
-  if (loading) return <><Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive"/><main className="mx-auto max-w-6xl px-6 py-32 text-center text-[10px] uppercase tracking-[0.2em]">Preparing checkout</main></>;
-  if (error && !cart) return <><Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive"/><main className="mx-auto max-w-3xl px-6 py-32 text-center"><h1 className="font-serif text-4xl">Checkout unavailable</h1><p className="mt-4 text-sm text-red-700">{error}</p></main></>;
-  if (!cart || cart.items.length===0) return <><Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive"/><main className="mx-auto max-w-3xl px-6 py-32 text-center"><h1 className="font-serif text-4xl">Your bag is empty.</h1><Link href="/shop" className="mt-6 inline-block underline">Return to shop</Link></main></>;
+  if (loading) return <><Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive"/><main className="editorial-page mx-auto max-w-6xl px-6 py-32 text-center text-[10px] uppercase tracking-[0.2em]">Preparing checkout</main></>;
+  if (error && !cart) return <><Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive"/><main className="editorial-page mx-auto max-w-3xl px-6 py-32 text-center"><h1 className="font-serif text-4xl">Checkout unavailable</h1><p className="mt-4 text-sm text-red-700">{error}</p></main></>;
+  if (!cart || cart.items.length===0) return <><Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive"/><main className="editorial-page mx-auto max-w-3xl px-6 py-32 text-center"><h1 className="font-serif text-4xl">Your bag is empty.</h1><Link href="/shop" className="mt-6 inline-block underline">Return to shop</Link></main></>;
 
   return <>
     <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive"/>
-    <main className="mx-auto max-w-6xl px-6 py-14 md:py-24">
+    <main className="editorial-page mx-auto max-w-6xl px-6 py-14 md:py-24">
       <div className="max-w-2xl"><p className="text-[10px] uppercase tracking-[0.24em] text-[#B8860B]">Secure checkout</p><h1 className="mt-4 font-serif text-5xl">Delivery details</h1><p className="mt-5 text-sm leading-7 text-[#181513]/60">Final tax and order totals are calculated by the commerce API when the checkout intent is created.</p></div>
       <form onSubmit={submit} className="mt-12 grid gap-14 md:grid-cols-[1fr_360px]">
         <section className="space-y-8">
