@@ -229,7 +229,7 @@ export default function OrderConfirmationPage() {
     return (
       <main className="editorial-page mx-auto max-w-2xl px-6 py-28 text-center md:py-36">
         <p className="eyebrow justify-center"><span className="eyebrow-dot" /> Order</p>
-        <h1 className="mt-5 font-serif text-5xl">We couldn't open this order.</h1>
+        <h1 className="mt-5 font-serif text-5xl">We could not open this order.</h1>
         <p className="mt-5 text-sm leading-7 text-red-700">{error}</p>
         <Link href="/account/orders" className="mt-8 inline-block text-[10px] uppercase tracking-[0.18em] text-[#A66B18] underline underline-offset-4">Back to orders →</Link>
       </main>
