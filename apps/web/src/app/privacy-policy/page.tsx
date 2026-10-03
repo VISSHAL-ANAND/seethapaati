@@ -1,6 +1,6 @@
 'use client';
 
-import { PolicyModal } from '../../../components/storefront/PolicyModal';
+import { PolicyModal } from '../../components/storefront/PolicyModal';
 
 export default function Page() {
   return (
