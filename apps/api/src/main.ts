@@ -1,8 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import helmet = require('helmet');
-import cookieParser = require('cookie-parser');
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -25,7 +25,7 @@ async function bootstrap() {
   );
 
   // Cookie Parser for HttpOnly auth tokens
-  app.use(cookieParser());
+  app.use(cookieParser.default ? cookieParser.default() : cookieParser());
 
   // CORS Configuration
   app.enableCors({
