@@ -9,8 +9,7 @@ type OrderItem = { id: string; productName: string; quantity: number; unitPriceC
 type Order = {
   id: string; orderNumber: string; status: string; createdAt: string; items: OrderItem[];
   pricing: { subtotalCents: number; discountCents: number; taxCents: number; shippingCents: number; grandTotalCents: number; currency: string };
-  shippingAddress: Record<string, unknown>;
-};
+  shippingAddress: Record<string, unknown>;\n  payments: Payment[];\n  statusHistory: StatusHistory[];\n};
 type Invoice = { invoiceNumber: string; status: string; issuedAt: string; grandTotalCents: number; currency: string };
 type TrackingEvent = { id: string; status: string; location?: string | null; description?: string | null; occurredAt: string };
 type Shipment = { id: string; status: string; carrier: string; trackingNumber?: string | null; trackingUrl?: string | null; estimatedDays?: number | null; trackingEvents: TrackingEvent[] };
@@ -77,7 +76,9 @@ export default function OrderConfirmationPage() {
         </section>
         <aside className="space-y-10">
           <section className="border-t border-[#181513] pt-6"><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Delivery</p><p className="mt-5 text-sm leading-6">{String(order.shippingAddress.addressLine1 || '')}<br />{String(order.shippingAddress.city || '')}, {String(order.shippingAddress.state || '')}<br />{String(order.shippingAddress.postalCode || '')}</p></section>
-          {shipment && <Tracking shipment={shipment} />}
+{shipment && <Tracking shipment={shipment} />}
+          {order.payments?.length > 0 && <section className="border-t border-[#181513] pt-6"><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Payment</p><div className="mt-4 space-y-3">{order.payments.map(payment => <div key={payment.id} className="text-sm"><p>{payment.gateway} · {payment.status}</p><p className="mt-1 text-xs text-[#181513]/50">₹{(payment.amountCents / 100).toLocaleString('en-IN')} · {new Date(payment.createdAt).toLocaleDateString('en-IN')}</p>{payment.gatewayPaymentId && <p className="mt-1 text-xs text-[#181513]/45">Payment reference · {payment.gatewayPaymentId}</p>}</div>)}</div></section>}
+          {order.statusHistory?.length > 0 && <section className="border-t border-[#181513] pt-6"><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Order timeline</p><div className="mt-5 space-y-5 border-l border-[#E3DFD7] pl-5">{order.statusHistory.map(event => <div key={event.id} className="relative"><span className="absolute -left-[22px] top-1 h-1.5 w-1.5 rounded-full bg-[#181513]" /><p className="text-xs uppercase tracking-[0.12em]">{event.newStatus.replaceAll('_',' ')}</p><p className="mt-1 text-xs text-[#181513]/50">{new Date(event.createdAt).toLocaleString('en-IN')}{event.reason ? ' · ' + event.reason : ''}</p></div>)}</div></section>}
           {invoice && <section className="border-t border-[#181513] pt-6"><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Invoice</p><p className="mt-4 font-serif text-xl">{invoice.invoiceNumber}</p><p className="mt-1 text-xs text-[#181513]/50">{invoice.status} · {new Date(invoice.issuedAt).toLocaleDateString('en-IN')}</p><p className="mt-4 text-xs text-[#181513]/50">Invoice total · ₹{(invoice.grandTotalCents / 100).toLocaleString('en-IN')}</p></section>}
           <ReturnRequest order={order} />
         </aside>
