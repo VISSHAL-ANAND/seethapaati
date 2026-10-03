@@ -12,6 +12,7 @@ export default function ShopPage() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     fetchApi<CategoryDto[]>('/catalog/categories')
@@ -44,7 +45,7 @@ export default function ShopPage() {
     return () => {
       active = false;
     };
-  }, [category, query]);
+  }, [category, query, retry]);
 
   const selectedCategory = categories.find((item) => item.slug === category)?.name;
 
@@ -126,8 +127,8 @@ export default function ShopPage() {
           <div className="border-y border-[#E3DFD7] py-20 text-center">
             <p className="font-serif text-3xl">The collection is taking a moment.</p>
             <p className="mt-3 text-sm text-[#181513]/55">{error}</p>
-            <button type="button" onClick={() => { setQuery((value) => value); setCategory((value) => value); }} className="mt-6 text-[10px] uppercase tracking-[0.18em] underline underline-offset-4">
-              Adjust your filters to try again
+            <button type="button" onClick={() => setRetry((value) => value + 1)} className="mt-6 text-[10px] uppercase tracking-[0.18em] underline underline-offset-4">
+              Try again
             </button>
           </div>
         ) : products.length === 0 ? (
