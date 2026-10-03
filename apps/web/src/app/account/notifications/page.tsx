@@ -33,7 +33,8 @@ const labels: Record<string, string> = {
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [preferences, setPreferences] = useState<Preferences | null>(null);
-  const [error, setError] = useState('');\n  const [savingPreference, setSavingPreference] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [savingPreference, setSavingPreference] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
