@@ -1,60 +1,41 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { fetchApi } from '../../lib/api-client';
 import Link from 'next/link';
+import { FormEvent, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { fetchApi, ApiClientError } from '../../lib/api-client';
 
-type Profile = { fullName: string; email: string; phone?: string | null };
-type Address = { id: string; fullName: string; phone: string; addressLine1: string; addressLine2?: string | null; city: string; state: string; postalCode: string; country: string; isDefault: boolean };
+type Profile={fullName:string;email:string;phone?:string|null};
+type Address={id:string;fullName:string;phone:string;addressLine1:string;addressLine2?:string|null;city:string;state:string;postalCode:string;country:string;isDefault:boolean};
+const blank={fullName:'',phone:'',addressLine1:'',addressLine2:'',city:'',state:'',postalCode:'',country:'IN',isDefault:false};
 
-export default function AccountPage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    Promise.all([fetchApi<Profile>('/users/me'), fetchApi<Address[]>('/users/me/addresses')])
-      .then(([p, a]) => { setProfile(p); setAddresses(a); })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load account'));
-  }, []);
-
-  return (
-    <main className="editorial-page mx-auto max-w-[1280px] px-6 pb-20 pt-12 md:px-10 md:pb-28 md:pt-20">
-      <header className="border-b border-[#E3DFD7] pb-8 md:pb-10">
-        <p className="eyebrow"><span className="eyebrow-dot" /> Your account</p>
-        <div className="mt-4 flex flex-wrap items-end justify-between gap-6">
-          <h1 className="font-serif text-5xl tracking-[-0.05em] md:text-7xl">{profile?.fullName || 'Account'}</h1>
-          <Link href="/account/orders" className="text-[10px] uppercase tracking-[0.18em] text-[#A66B18] underline underline-offset-4">View orders →</Link>
-        </div>
-      </header>
-      {error && <p role="alert" className="mt-8 border-l-2 border-red-700 px-4 py-2 text-sm text-red-700">{error}</p>}
-      <div className="mt-10 grid gap-6 md:mt-14 md:grid-cols-2">
-        <section className="border-t border-[#181513] bg-white/25 p-6 md:p-8">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Profile</p>
-          {profile ? <dl className="mt-7 space-y-6 text-sm">
-            <div><dt className="text-[10px] uppercase tracking-[0.15em] text-[#181513]/40">Name</dt><dd className="mt-2 font-serif text-2xl">{profile.fullName}</dd></div>
-            <div><dt className="text-[10px] uppercase tracking-[0.15em] text-[#181513]/40">Email</dt><dd className="mt-2">{profile.email}</dd></div>
-            <div><dt className="text-[10px] uppercase tracking-[0.15em] text-[#181513]/40">Phone</dt><dd className="mt-2">{profile.phone || 'Not provided'}</dd></div>
-          </dl> : <p className="mt-7 text-sm text-[#181513]/45">Loading profile…</p>}
-        </section>
-        <section className="border-t border-[#181513] bg-white/25 p-6 md:p-8">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Saved addresses</p>
-          {addresses.length === 0 ? <p className="mt-7 text-sm text-[#181513]/55">No saved addresses yet.</p> : (
-            <div className="mt-5 divide-y divide-[#E3DFD7]">
-              {addresses.map((a) => <div key={a.id} className="py-5 text-sm first:pt-1">
-                <p className="font-medium">{a.fullName}{a.isDefault ? <span className="ml-2 text-[9px] uppercase tracking-[0.12em] text-[#A66B18]">Default</span> : null}</p>
-                <p className="mt-2 text-[#181513]/60">{a.addressLine1}{a.addressLine2 ? ', ' + a.addressLine2 : ''}</p>
-                <p className="text-[#181513]/60">{a.city}, {a.state} {a.postalCode}</p>
-              </div>)}
-            </div>
-          )}
-        </section>
-      </div>
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <Link href="/account/orders" className="border border-[#E3DFD7] p-5 text-[10px] uppercase tracking-[0.17em] transition-colors hover:border-[#B8860B]">Orders <span className="float-right">↗</span></Link>
-        <Link href="/account/returns" className="border border-[#E3DFD7] p-5 text-[10px] uppercase tracking-[0.17em] transition-colors hover:border-[#B8860B]">Returns <span className="float-right">↗</span></Link>
-        <Link href="/account/notifications" className="border border-[#E3DFD7] p-5 text-[10px] uppercase tracking-[0.17em] transition-colors hover:border-[#B8860B]">Notifications <span className="float-right">↗</span></Link>
-      </div>
-    </main>
-  );
+export default function AccountPage(){
+ const router=useRouter();
+ const [profile,setProfile]=useState<Profile|null>(null),[addresses,setAddresses]=useState<Address[]>([]),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const [form,setForm]=useState({fullName:'',phone:''}),[address,setAddress]=useState(blank),[editing,setEditing]=useState<string|null>(null),[addressOpen,setAddressOpen]=useState(false),[saving,setSaving]=useState(false),[savingAddress,setSavingAddress]=useState(false);
+ async function load(){const [p,a]=await Promise.all([fetchApi<Profile>('/users/me'),fetchApi<Address[]>('/users/me/addresses')]);setProfile(p);setForm({fullName:p.fullName,phone:p.phone??''});setAddresses(a)}
+ useEffect(()=>{load().catch(e=>{if(e instanceof ApiClientError&&e.code==='UNAUTHORIZED')router.replace('/account/login?next=/account');else setError(e instanceof Error?e.message:'Unable to load account')})},[router]);
+ async function saveProfile(e:FormEvent){e.preventDefault();setSaving(true);setError('');try{const p=await fetchApi<Profile>('/users/me',{method:'PATCH',body:JSON.stringify(form)});setProfile(p);setForm({fullName:p.fullName,phone:p.phone??''});setNotice('Profile updated.')}catch(e){setError(e instanceof Error?e.message:'Unable to update profile')}finally{setSaving(false)}}
+ function newAddress(){setEditing(null);setAddress({...blank,fullName:profile?.fullName??'',phone:profile?.phone??'',isDefault:addresses.length===0});setAddressOpen(true)}
+ function editAddress(a:Address){setEditing(a.id);setAddress({fullName:a.fullName,phone:a.phone,addressLine1:a.addressLine1,addressLine2:a.addressLine2??'',city:a.city,state:a.state,postalCode:a.postalCode,country:a.country,isDefault:a.isDefault});setAddressOpen(true)}
+ async function saveAddress(e:FormEvent){e.preventDefault();setSavingAddress(true);setError('');try{const saved=editing?await fetchApi<Address>('/users/me/addresses/'+editing,{method:'PATCH',body:JSON.stringify(address)}):await fetchApi<Address>('/users/me/addresses',{method:'POST',body:JSON.stringify(address)});setAddresses(xs=>{const next=editing?xs.map(x=>x.id===saved.id?saved:x):[...xs,saved];return saved.isDefault?next.map(x=>({...x,isDefault:x.id===saved.id})):next});setAddressOpen(false);setNotice(editing?'Address updated.':'Address saved.')}catch(e){setError(e instanceof Error?e.message:'Unable to save address')}finally{setSavingAddress(false)}}
+ async function removeAddress(id:string){if(!window.confirm('Remove this saved address?'))return;try{await fetchApi('/users/me/addresses/'+id,{method:'DELETE'});setAddresses(xs=>xs.filter(x=>x.id!==id));setNotice('Address removed.')}catch(e){setError(e instanceof Error?e.message:'Unable to remove address')}}
+ async function logout(){await fetchApi('/auth/logout',{method:'POST'}).catch(()=>{});router.replace('/')}
+ return <main className="editorial-page mx-auto max-w-[1280px] px-6 pb-20 pt-12 md:px-10 md:pb-28 md:pt-20">
+  <header className="border-b border-[#E3DFD7] pb-8"><p className="eyebrow"><span className="eyebrow-dot"/> Your account</p><div className="mt-4 flex flex-wrap items-end justify-between gap-6"><h1 className="font-serif text-5xl tracking-[-0.05em] md:text-7xl">{profile?.fullName||'Account'}</h1><button onClick={logout} className="text-[10px] uppercase tracking-[0.18em] text-[#A66B18] underline underline-offset-4">Sign out</button></div></header>
+  {error&&<p role="alert" className="mt-8 border-l-2 border-red-700 px-4 py-2 text-sm text-red-700">{error}</p>}{notice&&<p role="status" className="mt-8 border-l-2 border-[#B8860B] px-4 py-2 text-sm">{notice}</p>}
+  <div className="mt-10 grid gap-8 lg:grid-cols-2">
+   <section className="border-t border-[#181513] bg-white/25 p-6 md:p-8"><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Profile</p><form onSubmit={saveProfile} className="mt-7 space-y-6">
+    <label className="block text-[10px] uppercase tracking-[0.15em]">Full name<input required value={form.fullName} onChange={e=>setForm({...form,fullName:e.target.value})} className="mt-2 w-full border-b border-[#181513]/25 bg-transparent py-3 text-sm outline-none focus:border-[#B8860B]"/></label>
+    <label className="block text-[10px] uppercase tracking-[0.15em]">Email<input disabled value={profile?.email??''} className="mt-2 w-full border-b border-[#E3DFD7] bg-transparent py-3 text-sm text-[#181513]/45"/></label>
+    <label className="block text-[10px] uppercase tracking-[0.15em]">Phone<input type="tel" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} className="mt-2 w-full border-b border-[#181513]/25 bg-transparent py-3 text-sm outline-none focus:border-[#B8860B]"/></label>
+    <button disabled={saving} className="bg-[#181513] px-6 py-3 text-[10px] uppercase tracking-[0.18em] text-[#F7F5F0] disabled:opacity-50">{saving?'Saving…':'Save profile'}</button>
+   </form></section>
+   <section className="border-t border-[#181513] bg-white/25 p-6 md:p-8"><div className="flex justify-between gap-5"><div><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Saved addresses</p><p className="mt-2 text-xs text-[#181513]/45">Manage the addresses used at checkout.</p></div><button onClick={newAddress} className="text-[10px] uppercase tracking-[0.16em] text-[#A66B18] underline underline-offset-4">+ Add</button></div>
+    <div className="mt-6 divide-y divide-[#E3DFD7]">{addresses.length===0?<p className="py-6 text-sm text-[#181513]/50">No saved addresses yet.</p>:addresses.map(a=><article key={a.id} className="py-5"><div className="flex justify-between gap-5"><div className="text-sm"><p className="font-medium">{a.fullName}{a.isDefault&&<span className="ml-2 text-[9px] uppercase tracking-[0.12em] text-[#A66B18]">Default</span>}</p><p className="mt-2 text-[#181513]/60">{a.addressLine1}{a.addressLine2?', '+a.addressLine2:''}</p><p className="text-[#181513]/60">{a.city}, {a.state} {a.postalCode}</p><p className="mt-1 text-xs text-[#181513]/45">{a.phone}</p></div><div className="flex gap-4 text-[9px] uppercase tracking-[0.14em]"><button onClick={()=>editAddress(a)} className="underline">Edit</button><button onClick={()=>removeAddress(a.id)} className="text-[#181513]/50 underline">Remove</button></div></div></article>)}</div>
+    {addressOpen&&<form onSubmit={saveAddress} className="mt-6 border-t border-[#E3DFD7] pt-6"><p className="text-[10px] uppercase tracking-[0.18em]">{editing?'Edit address':'New address'}</p><div className="mt-5 grid gap-5 sm:grid-cols-2">{(['fullName','phone','addressLine1','addressLine2','city','state','postalCode'] as const).map(k=><label key={k} className="block text-[10px] uppercase tracking-[0.13em]">{k.replace(/([A-Z])/g,' $1')}<input required={k!=='addressLine2'} value={String(address[k]??'')} onChange={e=>setAddress({...address,[k]:e.target.value})} className="mt-2 w-full border-b border-[#181513]/20 bg-transparent py-2.5 text-sm outline-none focus:border-[#B8860B]"/></label>)}</div><label className="mt-5 flex items-center gap-3 text-[10px] uppercase tracking-[0.13em]"><input type="checkbox" checked={address.isDefault} onChange={e=>setAddress({...address,isDefault:e.target.checked})}/> Make default</label><div className="mt-6 flex gap-5"><button disabled={savingAddress} className="bg-[#181513] px-5 py-3 text-[10px] uppercase tracking-[0.16em] text-[#F7F5F0]">{savingAddress?'Saving…':'Save address'}</button><button type="button" onClick={()=>setAddressOpen(false)} className="text-[10px] uppercase tracking-[0.16em] underline">Cancel</button></div></form>}
+   </section>
+  </div>
+  <div className="mt-6 grid gap-3 sm:grid-cols-3"><Link href="/account/orders" className="border border-[#E3DFD7] p-5 text-[10px] uppercase tracking-[0.17em]">Orders <span className="float-right">↗</span></Link><Link href="/account/returns" className="border border-[#E3DFD7] p-5 text-[10px] uppercase tracking-[0.17em]">Returns <span className="float-right">↗</span></Link><Link href="/account/notifications" className="border border-[#E3DFD7] p-5 text-[10px] uppercase tracking-[0.17em]">Notifications <span className="float-right">↗</span></Link></div>
+ </main>;
 }
