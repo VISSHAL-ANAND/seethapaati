@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { ReactNode } from 'react';
 
-export default function AccountLayout({ children }: { children: React.ReactNode }) {
+export default function AccountLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const links = [
     { href: '/account', label: 'Overview' },
