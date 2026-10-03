@@ -26,11 +26,20 @@ export function SiteHeader() {
           </Link>
 
           <nav aria-label="Main navigation" className="hidden items-center gap-8 text-[9px] font-medium uppercase tracking-[0.22em] md:flex">
-            <Link href="/shop" className="transition-colors hover:text-[#B8860B]">Shop</Link>
-            <Link href="/about" className="transition-colors hover:text-[#B8860B]">About us</Link>
-            <Link href="/contact" className="transition-colors hover:text-[#B8860B]">Contact</Link>
-            <Link href="/account/orders" className="transition-colors hover:text-[#B8860B]">Orders</Link>
-            <Link href="/cart" className="transition-colors hover:text-[#B8860B]">Bag <span aria-hidden="true">↗</span></Link>
+            {[
+              ['/shop', 'Shop'],
+              ['/about', 'About us'],
+              ['/contact', 'Contact'],
+              ['/account/orders', 'Orders'],
+              ['/cart', 'Bag'],
+            ].map(([href, label]) => (
+              <Link key={href} href={href} className="nav-cube" aria-label={label}>
+                <span className="nav-cube__inner">
+                  <span className="nav-cube__face nav-cube__face--front">{label}{label === 'Bag' && <span aria-hidden="true"> ↗</span>}</span>
+                  <span className="nav-cube__face nav-cube__face--back" aria-hidden="true">{label}{label === 'Bag' && <span aria-hidden="true"> ↗</span>}</span>
+                </span>
+              </Link>
+            ))}
           </nav>
 
           <button
