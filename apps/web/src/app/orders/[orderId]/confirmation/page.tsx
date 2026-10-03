@@ -13,13 +13,13 @@ type Order = {
 };
 type Invoice = { invoiceNumber: string; status: string; issuedAt: string; grandTotalCents: number; currency: string };
 type TrackingEvent = { id: string; status: string; location?: string | null; description?: string | null; occurredAt: string };
-type Shipment = { id: string; status: string; carrier: string; trackingNumber?: string | null; trackingUrl?: string | null; trackingEvents: TrackingEvent[] };
+type Shipment = { id: string; status: string; carrier: string; trackingNumber?: string | null; trackingUrl?: string | null; estimatedDays?: number | null; trackingEvents: TrackingEvent[] };
 
 export default function OrderConfirmationPage() {
   const params = useParams<{ orderId: string }>();
   const [order, setOrder] = useState<Order | null>(null);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
-  const [shipment, setShipment] = useState<Shipment | null>(null);
+  const [shipment, setShipment] = useState<Shipment | null>(null);\n  const [cancelling, setCancelling] = useState(false);\n  const [cancelMessage, setCancelMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -40,6 +40,18 @@ export default function OrderConfirmationPage() {
   }, [params.orderId]);
 
   if (loading) return <main className="mx-auto max-w-5xl px-6 py-32 text-center text-[10px] uppercase tracking-[0.2em]">Loading order</main>;
+  async function cancelOrder() {
+    if (!order || !window.confirm('Cancel this order?')) return;
+    setCancelling(true); setCancelMessage('');
+    try {
+      await fetchApi('/orders/' + order.id + '/cancel', { method: 'POST', body: JSON.stringify({ reason: 'Cancelled by customer' }) });
+      setOrder({ ...order, status: 'CANCELLED' });
+      setCancelMessage('Order cancelled.');
+    } catch (err) {
+      setCancelMessage(err instanceof Error ? err.message : 'Unable to cancel this order.');
+    } finally { setCancelling(false); }
+  }
+
   if (error || !order) return <main className="mx-auto max-w-5xl px-6 py-32 text-center"><h1 className="font-serif text-4xl">Order unavailable</h1><p className="mt-4 text-sm text-red-700">{error || 'This order could not be found.'}</p><Link href="/account/orders" className="mt-7 inline-block text-xs underline underline-offset-4">Back to orders</Link></main>;
 
   return (
@@ -50,6 +62,8 @@ export default function OrderConfirmationPage() {
           <p className="eyebrow"><span className="eyebrow-dot" /> Order details</p>
           <h1 className="mt-4 font-serif text-6xl font-normal tracking-[-0.05em] md:text-7xl">{order.orderNumber}</h1>
           <div className="mt-5 flex flex-wrap gap-4 text-[10px] uppercase tracking-[0.14em] text-[#181513]/55"><span>{order.status.replaceAll('_', ' ')}</span><span>{new Date(order.createdAt).toLocaleDateString('en-IN')}</span></div>
+          {cancelMessage && <p role="status" className="mt-5 text-sm">{cancelMessage}</p>}
+          {order.status === 'PENDING_PAYMENT' && <button type="button" disabled={cancelling} onClick={cancelOrder} className="mt-5 text-[10px] uppercase tracking-[0.16em] text-red-700 underline underline-offset-4 disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel order'}</button>}
           <div className="mt-12 divide-y divide-[#E3DFD7] border-y border-[#E3DFD7]">
             {order.items.map((item) => <div key={item.id} className="flex justify-between gap-8 py-6"><div><p className="font-serif text-xl">{item.productName}</p><p className="mt-1 text-xs text-[#181513]/50">Qty {item.quantity}</p></div><span className="text-sm">₹{(item.lineTotalCents / 100).toLocaleString('en-IN')}</span></div>)}
           </div>
@@ -77,7 +91,7 @@ function Tracking({ shipment }: { shipment: Shipment }) {
     <section className="border-t border-[#181513] pt-6">
       <p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Shipment tracking</p>
       <div className="mt-5">
-        <p className="text-sm">{shipment.carrier}{shipment.trackingNumber ? ' · ' + shipment.trackingNumber : ''}</p>
+        <p className="text-sm">{shipment.carrier}{shipment.trackingNumber ? ' · ' + shipment.trackingNumber : ''}</p>\n        {shipment.trackingUrl && <a href={shipment.trackingUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[10px] uppercase tracking-[0.15em] text-[#A66B18] underline underline-offset-4">Open carrier tracking ↗</a>}\n        {shipment.estimatedDays != null && <p className="mt-2 text-xs text-[#181513]/50">Estimated transit · {shipment.estimatedDays} days</p>}
         <p className="mt-1 text-[10px] uppercase tracking-[0.15em] text-[#181513]/45">{shipment.status.replaceAll('_', ' ')}</p>
         <div className="mt-6 space-y-5 border-l border-[#E3DFD7] pl-5">
           {shipment.trackingEvents.map((event) => (
