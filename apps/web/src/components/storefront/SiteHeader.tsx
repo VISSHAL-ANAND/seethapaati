@@ -25,7 +25,8 @@ export function SiteHeader() {
             SEETHAPAATI<span className="ml-1 text-[#B8860B]">.</span>
           </Link>
 
-          <nav aria-label="Main navigation" className="hidden items-center gap-8 text-[9px] font-medium uppercase tracking-[0.22em] md:flex">
+          <div className="hidden items-center gap-7 md:flex">
+            <nav aria-label="Main navigation" className="site-header__nav text-[9px] font-medium uppercase tracking-[0.22em]">
             {[
               ['/shop', 'Shop'],
               ['/about', 'About us'],
@@ -40,7 +41,19 @@ export function SiteHeader() {
                 </span>
               </Link>
             ))}
-          </nav>
+            </nav>
+            <Link
+              href="/account"
+              className="account-icon"
+              aria-label="Account or sign in"
+              title="Account / Sign in"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="8" r="3.5" />
+                <path d="M5.5 20c.7-3.7 2.9-5.7 6.5-5.7s5.8 2 6.5 5.7" />
+              </svg>
+            </Link>
+          </div>
 
           <button
             type="button"
