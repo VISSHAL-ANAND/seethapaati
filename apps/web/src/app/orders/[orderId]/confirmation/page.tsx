@@ -64,18 +64,18 @@ export default function OrderConfirmationPage() {
           {cancelMessage && <p role="status" className="mt-5 text-sm">{cancelMessage}</p>}
           {order.status === 'PENDING_PAYMENT' && <button type="button" disabled={cancelling} onClick={cancelOrder} className="mt-5 text-[10px] uppercase tracking-[0.16em] text-red-700 underline underline-offset-4 disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel order'}</button>}
           <div className="mt-12 divide-y divide-[#E3DFD7] border-y border-[#E3DFD7]">
-            {order.items.map((item) => <div key={item.id} className="flex justify-between gap-8 py-6"><div><p className="font-serif text-xl">{item.productName}</p><p className="mt-1 text-xs text-[#181513]/50">Qty {item.quantity}</p></div><span className="text-sm">₹{(item.lineTotalCents / 100).toLocaleString('en-IN')}</span></div>)}
+            {order.items.map((item) => <div key={item.id} className="flex justify-between gap-8 py-6"><div><p className="font-serif text-xl">{item.productNameSnapshot}</p><p className="mt-1 text-xs text-[#181513]/50">Qty {item.quantity}</p></div><span className="text-sm">₹{(item.lineTotalCents / 100).toLocaleString('en-IN')}</span></div>)}
           </div>
           <div className="mt-8 max-w-md space-y-3 text-sm">
-            <div className="flex justify-between"><span>Subtotal</span><span>₹{(order.pricing.subtotalCents / 100).toLocaleString('en-IN')}</span></div>
-            {order.pricing.discountCents > 0 && <div className="flex justify-between"><span>Discount</span><span>-₹{(order.pricing.discountCents / 100).toLocaleString('en-IN')}</span></div>}
-            <div className="flex justify-between"><span>Tax</span><span>₹{(order.pricing.taxCents / 100).toLocaleString('en-IN')}</span></div>
-            <div className="flex justify-between"><span>Shipping</span><span>₹{(order.pricing.shippingCents / 100).toLocaleString('en-IN')}</span></div>
-            <div className="flex justify-between border-t border-[#E3DFD7] pt-4 font-serif text-2xl"><span>Total</span><span>₹{(order.pricing.grandTotalCents / 100).toLocaleString('en-IN')}</span></div>
+            <div className="flex justify-between"><span>Subtotal</span><span>₹{(order.subtotalCents / 100).toLocaleString('en-IN')}</span></div>
+            {order.discountCents > 0 && <div className="flex justify-between"><span>Discount</span><span>-₹{(order.pricing.discountCents / 100).toLocaleString('en-IN')}</span></div>}
+            <div className="flex justify-between"><span>Tax</span><span>₹{(order.taxCents / 100).toLocaleString('en-IN')}</span></div>
+            <div className="flex justify-between"><span>Shipping</span><span>₹{(order.shippingCents / 100).toLocaleString('en-IN')}</span></div>
+            <div className="flex justify-between border-t border-[#E3DFD7] pt-4 font-serif text-2xl"><span>Total</span><span>₹{(order.grandTotalCents / 100).toLocaleString('en-IN')}</span></div>
           </div>
         </section>
         <aside className="space-y-10">
-          <section className="border-t border-[#181513] pt-6"><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Delivery</p><p className="mt-5 text-sm leading-6">{String(order.shippingAddress.addressLine1 || '')}<br />{String(order.shippingAddress.city || '')}, {String(order.shippingAddress.state || '')}<br />{String(order.shippingAddress.postalCode || '')}</p></section>
+          <section className="border-t border-[#181513] pt-6"><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Delivery</p><p className="mt-5 text-sm leading-6">{String(order.shippingAddressSnapshot.addressLine1 || '')}<br />{String(order.shippingAddressSnapshot.city || '')}, {String(order.shippingAddressSnapshot.state || '')}<br />{String(order.shippingAddressSnapshot.postalCode || '')}</p></section>
 {shipment && <Tracking shipment={shipment} />}
           {order.payments?.length > 0 && <section className="border-t border-[#181513] pt-6"><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Payment</p><div className="mt-4 space-y-3">{order.payments.map(payment => <div key={payment.id} className="text-sm"><p>{payment.gateway} · {payment.status}</p><p className="mt-1 text-xs text-[#181513]/50">₹{(payment.amountCents / 100).toLocaleString('en-IN')} · {new Date(payment.createdAt).toLocaleDateString('en-IN')}</p>{payment.gatewayPaymentId && <p className="mt-1 text-xs text-[#181513]/45">Payment reference · {payment.gatewayPaymentId}</p>}</div>)}</div></section>}
           {order.statusHistory?.length > 0 && <section className="border-t border-[#181513] pt-6"><p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Order timeline</p><div className="mt-5 space-y-5 border-l border-[#E3DFD7] pl-5">{order.statusHistory.map(event => <div key={event.id} className="relative"><span className="absolute -left-[22px] top-1 h-1.5 w-1.5 rounded-full bg-[#181513]" /><p className="text-xs uppercase tracking-[0.12em]">{event.newStatus.replaceAll('_',' ')}</p><p className="mt-1 text-xs text-[#181513]/50">{new Date(event.createdAt).toLocaleString('en-IN')}{event.reason ? ' · ' + event.reason : ''}</p></div>)}</div></section>}
@@ -92,7 +92,8 @@ function Tracking({ shipment }: { shipment: Shipment }) {
     <section className="border-t border-[#181513] pt-6">
       <p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Shipment tracking</p>
       <div className="mt-5">
-        <p className="text-sm">{shipment.carrier}{shipment.trackingNumber ? ' · ' + shipment.trackingNumber : ''}</p>\n        {shipment.trackingUrl && <a href={shipment.trackingUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[10px] uppercase tracking-[0.15em] text-[#A66B18] underline underline-offset-4">Open carrier tracking ↗</a>}\n        {shipment.estimatedDays != null && <p className="mt-2 text-xs text-[#181513]/50">Estimated transit · {shipment.estimatedDays} days</p>}
+        <p className="text-sm">{shipment.carrier}{shipment.trackingNumber ? ' · ' + shipment.trackingNumber : ''}</p>
+        {shipment.trackingUrl && <a href={shipment.trackingUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[10px] uppercase tracking-[0.15em] text-[#A66B18] underline underline-offset-4">Open carrier tracking ↗</a>}\n        {shipment.estimatedDays != null && <p className="mt-2 text-xs text-[#181513]/50">Estimated transit · {shipment.estimatedDays} days</p>}
         <p className="mt-1 text-[10px] uppercase tracking-[0.15em] text-[#181513]/45">{shipment.status.replaceAll('_', ' ')}</p>
         <div className="mt-6 space-y-5 border-l border-[#E3DFD7] pl-5">
           {shipment.trackingEvents.map((event) => (
