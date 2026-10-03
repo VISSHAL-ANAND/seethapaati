@@ -20,7 +20,7 @@ export default function OrdersPage() {
   }, []);
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-14 md:px-10 md:py-20">
+    <main className="editorial-page mx-auto max-w-6xl px-6 py-14 md:px-10 md:py-20">
       <div className="flex items-end justify-between gap-6 border-b border-[#E3DFD7] pb-8">
         <div><p className="text-[10px] uppercase tracking-[0.24em] text-[#B8860B]">Account</p><h1 className="mt-3 font-serif text-5xl">Your orders</h1></div>
         <span className="text-xs text-[#181513]/50">{orders.length} shown</span>
