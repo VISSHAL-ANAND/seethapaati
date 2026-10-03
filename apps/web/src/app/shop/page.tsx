@@ -28,7 +28,7 @@ export default function ShopPage() {
   }, [category, query]);
 
   return (
-    <main className="mx-auto max-w-[1440px] px-6 py-16 md:px-10 md:py-24">
+    <main className="editorial-page mx-auto max-w-[1440px] px-6 py-16 md:px-10 md:py-24">
       <div className="max-w-3xl">
         <p className="text-[10px] uppercase tracking-[0.25em] text-[#B8860B]">Collection</p>
         <h1 className="mt-4 font-serif text-5xl tracking-tight md:text-7xl">The Shop</h1>
