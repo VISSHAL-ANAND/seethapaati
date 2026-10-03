@@ -19,8 +19,8 @@ export default function AccountPage() {
   }, []);
 
   return (
-    <main className="editorial-page mx-auto max-w-6xl px-6 py-14 md:px-10 md:py-20">
-      <p className="text-[10px] uppercase tracking-[0.24em] text-[#B8860B]">Your account</p>
+    <main className="editorial-page mx-auto max-w-[1280px] px-6 pb-20 pt-12 md:px-10 md:pb-28 md:pt-20">
+      <p className="eyebrow"><span className="eyebrow-dot" /> Your account</p>
       <div className="mt-4 flex flex-wrap items-end justify-between gap-6">
         <h1 className="font-serif text-5xl md:text-6xl">{profile?.fullName || 'Account'}</h1>
         <Link href="/account/orders" className="text-xs underline underline-offset-4">View orders</Link>
