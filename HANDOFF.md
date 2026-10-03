@@ -7,9 +7,10 @@ This document is the working handover for continuing the Seethapaati e-commerce 
 ## Repository
 
 - GitHub: https://github.com/VISSHAL-ANAND/seethapaati
-- UI redesign branch: `feature/phase-10-5-ui-redesign`
+- UI finalization branch: `feature/ui-finalization`
 - Main development/base branch: `feature/phase-1-foundation`
 - Phase 10.5 pull request: https://github.com/VISSHAL-ANAND/seethapaati/pull/15
+- UI finalization pull request: https://github.com/VISSHAL-ANAND/seethapaati/pull/16
 - Phase 11 deployment pull request: https://github.com/VISSHAL-ANAND/seethapaati/pull/14
 
 ## Product and architecture
@@ -54,31 +55,31 @@ Available repository image assets include `apps/web/public/images/masala.jpg`, `
 - The earlier Phase 10.5 work redesigned the homepage, global header/announcement bar, footer copy and global styles. The homepage has a hero, collection section, brand approach section and closing CTA.
 - Previously reported CI run #232 (run ID `37045157785`) passed for commit `6abd6d9af4ccb755e77689f70fa2acba82446e4c`. This is a historical result; re-check the latest head and CI before sign-off.
 
-## UI work still required
+## UI work completed on `feature/ui-finalization`
 
 The user explicitly identified these pages as still using their earlier designs and wants them redesigned to match the homepage:
 
-- [ ] Shop — `apps/web/src/app/shop/page.tsx`
-- [ ] Product detail — `apps/web/src/app/shop/[slug]/page.tsx`
-- [ ] Cart — `apps/web/src/app/cart/page.tsx`
-- [ ] Checkout — `apps/web/src/app/checkout/page.tsx`
-- [ ] Account overview — `apps/web/src/app/account/page.tsx`
-- [ ] Orders — `apps/web/src/app/account/orders/page.tsx`
-- [ ] Returns — `apps/web/src/app/account/returns/page.tsx`
-- [ ] Notifications — `apps/web/src/app/account/notifications/page.tsx`
+- [x] Shop — `apps/web/src/app/shop/page.tsx`
+- [x] Product detail — `apps/web/src/app/shop/[slug]/page.tsx`
+- [x] Cart — `apps/web/src/app/cart/page.tsx`
+- [x] Checkout — `apps/web/src/app/checkout/page.tsx`
+- [x] Account overview — `apps/web/src/app/account/page.tsx`
+- [x] Orders — `apps/web/src/app/account/orders/page.tsx`
+- [x] Returns — `apps/web/src/app/account/returns/page.tsx`
+- [x] Notifications — `apps/web/src/app/account/notifications/page.tsx`
 
-Also inspect the account layout, login/register, order confirmation, and any relevant empty/loading/error states so the experience remains coherent. Do not assume they are complete just because they were not in the user's list.
+Also refined the account layout, login/register, order confirmation, global navigation, product cards, responsive mobile navigation, loading/empty/error states, and added About, Contact, Shipping, Returns, Terms & Conditions and Privacy Policy pages. Terms and Privacy open in premium scrollable modals.
 
 ## Required workflow
 
-1. Start by fetching the latest PR #15 details and branch head; do not rely on the historical SHA above.
+1. Continue from PR #16 and its latest branch head; do not merge until the user approves.
 2. Inspect the current page source and existing CSS before changing it.
-3. Redesign the listed pages in the existing Phase 10.5 branch. Keep the existing routes and functionality.
+3. Keep UI changes on `feature/ui-finalization`. Preserve existing routes and functionality.
 4. Check responsive behavior, empty/error/loading states, accessibility, keyboard interactions, and reduced motion.
 5. Run the repository CI checks and inspect the latest workflow results on the updated PR head.
 6. Review the diff for accidental business-logic changes and unsupported product claims.
 7. Report precisely which pages were changed and which checks passed. Do not claim visual browser QA unless it was actually performed.
-8. Do not merge PR #15 or PR #14 without the user's explicit approval.
+8. Do not merge PR #16, PR #15 or PR #14 without the user's explicit approval.
 
 ## Working style requested by the user
 
