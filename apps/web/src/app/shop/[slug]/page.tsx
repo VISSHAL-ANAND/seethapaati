@@ -25,8 +25,8 @@ export default function ProductPage() {
       .catch(() => setState('error'));
   }, [params.slug]);
 
-  if (state === 'loading') return <main className="mx-auto max-w-6xl px-6 py-32 text-center text-[10px] uppercase tracking-[0.2em]">Loading</main>;
-  if (state === 'error' || !product) return <main className="mx-auto max-w-6xl px-6 py-32 text-center"><h1 className="font-serif text-4xl">Product unavailable</h1><Link href="/shop" className="mt-6 inline-block underline">Return to shop</Link></main>;
+  if (state === 'loading') return <main className="editorial-page mx-auto max-w-6xl px-6 py-32 text-center text-[10px] uppercase tracking-[0.2em]">Loading</main>;
+  if (state === 'error' || !product) return <main className="editorial-page mx-auto max-w-6xl px-6 py-32 text-center"><h1 className="font-serif text-4xl">Product unavailable</h1><Link href="/shop" className="mt-6 inline-block underline">Return to shop</Link></main>;
 
   const selected = product.variants.find((item) => item.id === variantId);
   const image = product.images[0]?.url;
@@ -43,7 +43,7 @@ export default function ProductPage() {
   }
 
   return (
-    <main className="mx-auto max-w-[1440px] px-6 py-10 md:px-10 md:py-20">
+    <main className="editorial-page mx-auto max-w-[1440px] px-6 py-10 md:px-10 md:py-20">
       <Link href="/shop" className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50 hover:text-[#181513]">← Collection</Link>
       <div className="mt-10 grid gap-12 md:grid-cols-[1.1fr_0.9fr] md:gap-20">
         <div className="aspect-[4/5] overflow-hidden bg-[#ECE8E0]">
