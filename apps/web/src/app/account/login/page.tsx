@@ -35,9 +35,9 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="mx-auto max-w-md px-6 py-20 md:py-28">
-      <p className="text-[10px] uppercase tracking-[0.24em] text-[#B8860B]">Your account</p>
-      <h1 className="mt-4 font-serif text-5xl">Sign in</h1>
+    <main className="editorial-page mx-auto max-w-md px-6 py-20 md:py-28">
+      <p className="eyebrow"><span className="eyebrow-dot" /> Your account</p>
+      <h1 className="mt-5 font-serif text-5xl font-normal tracking-[-0.05em] md:text-7xl">Sign in</h1>
       <p className="mt-5 text-sm leading-7 text-[#181513]/60">Sign in to continue to your orders and checkout.</p>
       <form onSubmit={submit} className="mt-10 space-y-6">
         <label className="block text-xs uppercase tracking-[0.16em]">Email<input required type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-2 w-full border-b border-[#181513]/25 bg-transparent py-3 outline-none" /></label>
