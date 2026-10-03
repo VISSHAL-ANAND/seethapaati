@@ -49,7 +49,7 @@ export default function OrderConfirmationPage() {
         <section>
           <p className="eyebrow"><span className="eyebrow-dot" /> Order details</p>
           <h1 className="mt-4 font-serif text-6xl font-normal tracking-[-0.05em] md:text-7xl">{order.orderNumber}</h1>
-          <div className="mt-5 flex flex-wrap gap-4 text-[10px] uppercase tracking-[0.14em] text-[#181513]/55"><span>{order.status.replaceAll('_', ' ')}</span><span>{new Date(order.createdAt).toLocaleDateString('en-IN')}</span></div></div>
+          <div className="mt-5 flex flex-wrap gap-4 text-[10px] uppercase tracking-[0.14em] text-[#181513]/55"><span>{order.status.replaceAll('_', ' ')}</span><span>{new Date(order.createdAt).toLocaleDateString('en-IN')}</span></div>
           <div className="mt-12 divide-y divide-[#E3DFD7] border-y border-[#E3DFD7]">
             {order.items.map((item) => <div key={item.id} className="flex justify-between gap-8 py-6"><div><p className="font-serif text-xl">{item.productName}</p><p className="mt-1 text-xs text-[#181513]/50">Qty {item.quantity}</p></div><span className="text-sm">₹{(item.lineTotalCents / 100).toLocaleString('en-IN')}</span></div>)}
           </div>
