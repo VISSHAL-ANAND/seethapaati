@@ -30,6 +30,41 @@ body {
 }
 ::selection { background: #181513; color: #F7F5F0; }
 
+.site-header__nav {
+  display: grid;
+  grid-template-columns: 72px 104px 86px 78px 66px;
+  align-items: center;
+  gap: 4px;
+}
+.site-header__nav .nav-cube {
+  width: 100%;
+  min-width: 0;
+}
+.account-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+  transition: border-color .3s ease, color .3s ease, background-color .3s ease, transform .35s var(--ease-out);
+}
+.account-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.account-icon:hover,
+.account-icon:focus-visible {
+  border-color: var(--saffron);
+  color: var(--saffron);
+  background: rgba(184,134,11,.05);
+  transform: translateY(-1px);
+}
+
 .nav-cube {
   position: relative;
   display: inline-block;
