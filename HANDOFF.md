@@ -68,7 +68,7 @@ The user explicitly identified these pages as still using their earlier designs 
 - [x] Returns — `apps/web/src/app/account/returns/page.tsx`
 - [x] Notifications — `apps/web/src/app/account/notifications/page.tsx`
 
-Also refined the account layout, login/register, order confirmation, global navigation, product cards, responsive mobile navigation, loading/empty/error states, and added About, Contact, Shipping, Returns, Terms & Conditions and Privacy Policy pages. Terms and Privacy open in premium scrollable modals.
+Also refined the account layout, login/register, order confirmation, global navigation, product cards, responsive mobile navigation, loading/empty/error states, and added About, Contact, Shipping, Returns, Terms & Conditions and Privacy Policy pages. Terms and Privacy open in premium scrollable modals. Customer account UI now exposes profile editing, saved-address CRUD, sign-out, notification preference controls, order cancellation while pending payment, payment details, order status history, invoice details, shipment carrier/tracking/estimated transit, carrier tracking link, return lifecycle and refund references.
 
 ## Required workflow
 
@@ -78,7 +78,7 @@ Also refined the account layout, login/register, order confirmation, global navi
 4. Check responsive behavior, empty/error/loading states, accessibility, keyboard interactions, and reduced motion.
 5. Run the repository CI checks and inspect the latest workflow results on the updated PR head.
 6. Review the diff for accidental business-logic changes and unsupported product claims.
-7. Report precisely which pages were changed and which checks passed. Do not claim visual browser QA unless it was actually performed.
+7. Report precisely which pages were changed and which checks passed. Latest UI expansion commits require a fresh CI run before claiming build/CI pass. Do not claim visual browser QA unless it was actually performed.
 8. Do not merge PR #16, PR #15 or PR #14 without the user's explicit approval.
 
 ## Working style requested by the user
