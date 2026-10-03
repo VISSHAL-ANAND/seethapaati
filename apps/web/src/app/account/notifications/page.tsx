@@ -33,7 +33,7 @@ const labels: Record<string, string> = {
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [preferences, setPreferences] = useState<Preferences | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState('');\n  const [savingPreference, setSavingPreference] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -48,6 +48,16 @@ export default function NotificationsPage() {
         setError(err instanceof Error ? err.message : 'Unable to load notifications');
       });
   }, []);
+
+  async function togglePreference(key: keyof Preferences, value: boolean) {
+    setSavingPreference(key); setError('');
+    try {
+      const next = await fetchApi<Preferences>('/users/me/notifications/preferences', { method: 'PATCH', body: JSON.stringify({ [key]: value }) });
+      setPreferences(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update notification preferences');
+    } finally { setSavingPreference(null); }
+  }
 
   return (
     <main className="editorial-page mx-auto max-w-[1280px] px-6 pb-20 pt-12 md:px-10 md:pb-28 md:pt-20">
@@ -84,7 +94,7 @@ export default function NotificationsPage() {
             {preferences && Object.entries(preferences).map(([key, enabled]) => (
               <div key={key} className="flex items-center justify-between gap-6 border-b border-black/10 pb-4">
                 <span>{key.replace(/([A-Z])/g, ' $1')}</span>
-                <span className="text-xs uppercase tracking-widest">{enabled ? 'On' : 'Off'}</span>
+                <button type="button" role="switch" aria-checked={enabled} disabled={savingPreference === key} onClick={() => togglePreference(key as keyof Preferences, !enabled)} className="text-xs uppercase tracking-widest underline underline-offset-4 disabled:opacity-40">{savingPreference === key ? 'Saving' : enabled ? 'On' : 'Off'}</button>
               </div>
             ))}
           </div>
