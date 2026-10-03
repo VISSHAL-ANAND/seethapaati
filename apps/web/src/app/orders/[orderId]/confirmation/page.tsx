@@ -44,12 +44,12 @@ export default function OrderConfirmationPage() {
 
   return (
     <main className="editorial-page mx-auto max-w-[1280px] px-6 pb-20 pt-12 md:px-10 md:pb-28 md:pt-20">
-      <Link href="/account/orders" className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">← Orders</Link>
-      <div className="mt-8 grid gap-14 md:grid-cols-[1fr_320px]">
+      <Link href="/account/orders" className="text-[10px] uppercase tracking-[0.2em] text-[#A66B18] underline underline-offset-4">← Orders</Link>
+      <div className="mt-8 grid gap-10 md:mt-12 md:grid-cols-[1fr_320px] md:gap-14">
         <section>
           <p className="eyebrow"><span className="eyebrow-dot" /> Order details</p>
           <h1 className="mt-4 font-serif text-6xl font-normal tracking-[-0.05em] md:text-7xl">{order.orderNumber}</h1>
-          <div className="mt-5 flex flex-wrap gap-4 text-xs uppercase tracking-[0.14em] text-[#181513]/55"><span>{order.status.replaceAll('_', ' ')}</span><span>{new Date(order.createdAt).toLocaleDateString('en-IN')}</span></div>
+          <div className="mt-5 flex flex-wrap gap-4 text-[10px] uppercase tracking-[0.14em] text-[#181513]/55"><span>{order.status.replaceAll('_', ' ')}</span><span>{new Date(order.createdAt).toLocaleDateString('en-IN')}</span></div></div>
           <div className="mt-12 divide-y divide-[#E3DFD7] border-y border-[#E3DFD7]">
             {order.items.map((item) => <div key={item.id} className="flex justify-between gap-8 py-6"><div><p className="font-serif text-xl">{item.productName}</p><p className="mt-1 text-xs text-[#181513]/50">Qty {item.quantity}</p></div><span className="text-sm">₹{(item.lineTotalCents / 100).toLocaleString('en-IN')}</span></div>)}
           </div>
