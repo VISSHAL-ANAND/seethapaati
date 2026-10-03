@@ -19,7 +19,7 @@ export default function AccountPage() {
   }, []);
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-14 md:px-10 md:py-20">
+    <main className="editorial-page mx-auto max-w-6xl px-6 py-14 md:px-10 md:py-20">
       <p className="text-[10px] uppercase tracking-[0.24em] text-[#B8860B]">Your account</p>
       <div className="mt-4 flex flex-wrap items-end justify-between gap-6">
         <h1 className="font-serif text-5xl md:text-6xl">{profile?.fullName || 'Account'}</h1>
