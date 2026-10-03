@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { fetchApi } from '../../../lib/api-client';
 
-type Order = { id: string; orderNumber: string; status: string; createdAt: string; pricing: { grandTotalCents: number; currency: string } };
+type Order = { id: string; orderNumber: string; status: string; createdAt: string; grandTotalCents: number; currency: string; };
 type OrdersResponse = { items: Order[]; total: number; page: number; limit: number; totalPages: number };
 
 export default function OrdersPage() {
@@ -32,7 +32,7 @@ export default function OrdersPage() {
           {orders.map((order) => <Link key={order.id} href={'/orders/' + order.id + '/confirmation'} className="group grid gap-4 py-7 transition-colors hover:bg-white/35 md:grid-cols-[1fr_auto_auto] md:items-center md:gap-10">
             <div><p className="font-serif text-2xl">{order.orderNumber}</p><p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-[#181513]/45">{order.status.replaceAll('_', ' ')}</p></div>
             <p className="text-xs text-[#181513]/50">{new Date(order.createdAt).toLocaleDateString('en-IN')}</p>
-            <p className="text-sm tabular-nums">₹{(order.pricing.grandTotalCents / 100).toLocaleString('en-IN')} <span className="ml-3 text-[#A66B18] opacity-0 transition-opacity group-hover:opacity-100">↗</span></p>
+            <p className="text-sm tabular-nums">₹{(order.grandTotalCents / 100).toLocaleString('en-IN')} <span className="ml-3 text-[#A66B18] opacity-0 transition-opacity group-hover:opacity-100">↗</span></p>
           </Link>)}
         </div>}
     </main>
