@@ -30,6 +30,43 @@ body {
 }
 ::selection { background: #181513; color: #F7F5F0; }
 
+.nav-cube {
+  position: relative;
+  display: inline-block;
+  height: 1.35em;
+  min-width: 3.4em;
+  color: var(--ink);
+  perspective: 420px;
+  text-decoration: none !important;
+  transition: color .3s ease;
+}
+.nav-cube:hover { color: var(--saffron); }
+.nav-cube__inner {
+  position: relative;
+  display: block;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform .65s cubic-bezier(.22,.8,.2,1);
+}
+.nav-cube:hover .nav-cube__inner,
+.nav-cube:focus-visible .nav-cube__inner {
+  transform: rotateX(-90deg);
+}
+.nav-cube__face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backface-visibility: hidden;
+  white-space: nowrap;
+}
+.nav-cube__face--front { transform: translateZ(.675em); }
+.nav-cube__face--back { transform: rotateX(90deg) translateZ(.675em); color: var(--saffron); }
+@media (prefers-reduced-motion: reduce) {
+  .nav-cube__inner { transition: none; }
+}
+
 .site-announcement {
   height: 30px;
   overflow: hidden;
