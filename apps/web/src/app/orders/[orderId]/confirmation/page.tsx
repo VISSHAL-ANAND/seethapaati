@@ -43,12 +43,12 @@ export default function OrderConfirmationPage() {
   if (error || !order) return <main className="mx-auto max-w-5xl px-6 py-32 text-center"><h1 className="font-serif text-4xl">Order unavailable</h1><p className="mt-4 text-sm text-red-700">{error || 'This order could not be found.'}</p><Link href="/account/orders" className="mt-7 inline-block text-xs underline underline-offset-4">Back to orders</Link></main>;
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-14 md:px-10 md:py-20">
+    <main className="editorial-page mx-auto max-w-[1280px] px-6 pb-20 pt-12 md:px-10 md:pb-28 md:pt-20">
       <Link href="/account/orders" className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">← Orders</Link>
       <div className="mt-8 grid gap-14 md:grid-cols-[1fr_320px]">
         <section>
-          <p className="text-[10px] uppercase tracking-[0.24em] text-[#B8860B]">Order</p>
-          <h1 className="mt-3 font-serif text-5xl">{order.orderNumber}</h1>
+          <p className="eyebrow"><span className="eyebrow-dot" /> Order details</p>
+          <h1 className="mt-4 font-serif text-6xl font-normal tracking-[-0.05em] md:text-7xl">{order.orderNumber}</h1>
           <div className="mt-5 flex flex-wrap gap-4 text-xs uppercase tracking-[0.14em] text-[#181513]/55"><span>{order.status.replaceAll('_', ' ')}</span><span>{new Date(order.createdAt).toLocaleDateString('en-IN')}</span></div>
           <div className="mt-12 divide-y divide-[#E3DFD7] border-y border-[#E3DFD7]">
             {order.items.map((item) => <div key={item.id} className="flex justify-between gap-8 py-6"><div><p className="font-serif text-xl">{item.productName}</p><p className="mt-1 text-xs text-[#181513]/50">Qty {item.quantity}</p></div><span className="text-sm">₹{(item.lineTotalCents / 100).toLocaleString('en-IN')}</span></div>)}
