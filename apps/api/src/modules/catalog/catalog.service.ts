@@ -13,6 +13,7 @@ import {
   CreateProductVariantRequest,
   UpdateProductVariantRequest,
   CatalogListQuery,
+  AddProductImageRequest,
 } from '@seethapaati/contracts';
 import { Prisma } from '@prisma/client';
 
@@ -98,18 +99,39 @@ export class CatalogService {
 
     const where: Prisma.ProductWhereInput = {};
 
-    // Public callers always see only ACTIVE products regardless of query param
-    where.status = isPublic ? 'ACTIVE' : (query.status ?? 'ACTIVE');
+    // Public callers always see only ACTIVE products; admin can filter or see all
+    if (isPublic) {
+      where.status = 'ACTIVE';
+    } else if (query.status) {
+      where.status = query.status;
+    }
 
     if (categorySlug) {
       const cat = await this.prisma.category.findUnique({ where: { slug: categorySlug } });
       if (cat) where.categoryId = cat.id;
     }
 
+    if (query.placement) {
+      where.merchandising = {
+        path: ['placements'],
+        array_contains: query.placement,
+      };
+    }
+
+    if (query.label) {
+      where.OR = [
+        ...(where.OR || []),
+        { merchandising: { path: ['badge'], equals: query.label } },
+        { merchandising: { path: ['labels'], array_contains: query.label } },
+      ];
+    }
+
     if (q) {
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
         { description: { contains: q, mode: 'insensitive' } },
+        { slug: { contains: q, mode: 'insensitive' } },
+        { variants: { some: { sku: { contains: q, mode: 'insensitive' } } } },
       ];
     }
 
@@ -131,10 +153,10 @@ export class CatalogService {
         include: {
           category: { select: { id: true, name: true, slug: true } },
           brand: { select: { id: true, name: true } },
-          images: { orderBy: { sortOrder: 'asc' }, take: 1 },
+          images: { orderBy: { sortOrder: 'asc' }, ...(isPublic ? { take: 1 } : {}) },
           variants: {
-            where: { status: 'ACTIVE' },
-            include: { inventory: { select: { quantityAvailable: true, quantityReserved: true } } },
+            where: isPublic ? { status: 'ACTIVE' } : undefined,
+            include: { inventory: { select: { quantityAvailable: true, quantityReserved: true, reorderThreshold: true } } },
             orderBy: { priceCents: 'asc' },
           },
         },
@@ -160,7 +182,7 @@ export class CatalogService {
         brand: { select: { id: true, name: true } },
         images: { orderBy: { sortOrder: 'asc' } },
         variants: {
-          include: { inventory: { select: { quantityAvailable: true, quantityReserved: true } } },
+          include: { inventory: { select: { quantityAvailable: true, quantityReserved: true, reorderThreshold: true } } },
           orderBy: { priceCents: 'asc' },
         },
       },
@@ -181,7 +203,7 @@ export class CatalogService {
         brand: { select: { id: true, name: true } },
         images: { orderBy: { sortOrder: 'asc' } },
         variants: {
-          include: { inventory: { select: { quantityAvailable: true, quantityReserved: true } } },
+          include: { inventory: { select: { quantityAvailable: true, quantityReserved: true, reorderThreshold: true } } },
           orderBy: { priceCents: 'asc' },
         },
       },
@@ -213,11 +235,20 @@ export class CatalogService {
         categoryId: dto.categoryId,
         brandId: dto.brandId,
         status: dto.status ?? 'DRAFT',
+        merchandising: (dto.merchandising as any) ?? {},
+      },
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+        brand: { select: { id: true, name: true } },
+        images: { orderBy: { sortOrder: 'asc' } },
+        variants: {
+          include: { inventory: { select: { quantityAvailable: true, quantityReserved: true, reorderThreshold: true } } },
+        },
       },
     });
 
     this.logger.log(`Product created: ${product.id} — ${product.name}`);
-    return product;
+    return this.formatProduct(product);
   }
 
   async updateProduct(productId: string, dto: UpdateProductRequest) {
@@ -234,13 +265,27 @@ export class CatalogService {
       if (!cat) throw new NotFoundException({ error: 'CATEGORY_NOT_FOUND', message: 'Category not found' });
     }
 
+    const dataToUpdate: any = { ...dto };
+    if (dto.merchandising !== undefined) {
+      dataToUpdate.merchandising = dto.merchandising ?? {};
+    }
+
     const updated = await this.prisma.product.update({
       where: { id: productId },
-      data: dto,
+      data: dataToUpdate,
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+        brand: { select: { id: true, name: true } },
+        images: { orderBy: { sortOrder: 'asc' } },
+        variants: {
+          include: { inventory: { select: { quantityAvailable: true, quantityReserved: true, reorderThreshold: true } } },
+          orderBy: { priceCents: 'asc' },
+        },
+      },
     });
 
     this.logger.log(`Product updated: ${productId}`);
-    return updated;
+    return this.formatProduct(updated);
   }
 
   // -------------------------------------------------------
@@ -306,7 +351,42 @@ export class CatalogService {
     return this.prisma.productVariant.update({
       where: { id: variantId },
       data: dto,
+      include: {
+        inventory: true,
+      },
     });
+  }
+
+  // -------------------------------------------------------
+  // PRODUCT IMAGES
+  // -------------------------------------------------------
+
+  async addImage(productId: string, dto: AddProductImageRequest) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundException({ error: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
+
+    const image = await this.prisma.productImage.create({
+      data: {
+        productId,
+        url: dto.url,
+        altText: dto.altText || '',
+        sortOrder: dto.sortOrder ?? 0,
+      },
+    });
+
+    this.logger.log(`Image added: ${image.id} for product ${productId}`);
+    return image;
+  }
+
+  async deleteImage(productId: string, imageId: string) {
+    const image = await this.prisma.productImage.findFirst({
+      where: { id: imageId, productId },
+    });
+    if (!image) throw new NotFoundException({ error: 'IMAGE_NOT_FOUND', message: 'Product image not found' });
+
+    await this.prisma.productImage.delete({ where: { id: imageId } });
+    this.logger.log(`Image deleted: ${imageId}`);
+    return { success: true, message: 'Image deleted successfully' };
   }
 
   // -------------------------------------------------------
@@ -322,18 +402,24 @@ export class CatalogService {
       status: product.status,
       rating: product.rating,
       reviewCount: product.reviewCount,
+      merchandising: product.merchandising ?? { badge: null, labels: [], placements: [], hero: null },
       category: product.category,
       brand: product.brand,
       images: product.images || [],
       variants: (product.variants || []).map((v: any) => ({
         id: v.id,
+        productId: v.productId,
         sku: v.sku,
         name: v.name,
+        hsnCode: v.hsnCode,
         weightGrams: v.weightGrams,
         packType: v.packType,
         priceCents: v.priceCents,
         compareAtPriceCents: v.compareAtPriceCents,
         status: v.status,
+        quantityAvailable: v.inventory?.quantityAvailable ?? 0,
+        quantityReserved: v.inventory?.quantityReserved ?? 0,
+        reorderThreshold: v.inventory?.reorderThreshold ?? 5,
         availableStock: v.inventory ? Math.max(0, v.inventory.quantityAvailable - v.inventory.quantityReserved) : 0,
         isAvailable: v.inventory
           ? v.status === 'ACTIVE' && v.inventory.quantityAvailable > v.inventory.quantityReserved

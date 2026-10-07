@@ -228,10 +228,10 @@ export default function OrderConfirmationPage() {
   if (error && !order) {
     return (
       <main className="editorial-page mx-auto max-w-2xl px-6 py-28 text-center md:py-36">
-        <p className="eyebrow justify-center"><span className="eyebrow-dot" /> Order</p>
-        <h1 className="mt-5 font-serif text-5xl">We could not open this order.</h1>
-        <p className="mt-5 text-sm leading-7 text-red-700">{error}</p>
-        <Link href="/account/orders" className="mt-8 inline-block text-[10px] uppercase tracking-[0.18em] text-[#A66B18] underline underline-offset-4">Back to orders →</Link>
+        <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#B8860B]">Order Lookup</p>
+        <h1 className="mt-4 font-serif text-4xl text-[#181513]">We could not open this order.</h1>
+        <p className="mt-3 text-sm text-red-700">{error}</p>
+        <Link href="/account/orders" className="mt-8 inline-block text-xs uppercase tracking-[0.16em] text-[#A66B18] underline underline-offset-4">Back to orders →</Link>
       </main>
     );
   }
@@ -246,7 +246,7 @@ export default function OrderConfirmationPage() {
   return (
     <main className="editorial-page mx-auto max-w-[1280px] px-6 pb-24 pt-12 md:px-10 md:pb-32 md:pt-20">
       <header className="border-b border-[#E3DFD7] pb-10">
-        <p className="eyebrow"><span className="eyebrow-dot" /> Order confirmed</p>
+        <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#B8860B]">Order Confirmed</p>
         <div className="mt-5 flex flex-wrap items-end justify-between gap-6">
           <div>
             <h1 className="font-serif text-5xl font-normal tracking-[-0.05em] md:text-7xl">{order.orderNumber}</h1>

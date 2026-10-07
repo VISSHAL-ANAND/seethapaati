@@ -156,6 +156,7 @@ model Product {
   status        ProductStatus @default(DRAFT)
   rating        Float         @default(0.0)
   reviewCount   Int           @default(0) @map("review_count")
+  merchandising Json?         @default("{}")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 

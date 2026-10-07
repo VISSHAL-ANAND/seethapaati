@@ -26,7 +26,7 @@ export function SiteHeader() {
           </Link>
 
           <div className="hidden items-center gap-7 md:flex">
-            <nav aria-label="Main navigation" className="site-header__nav text-[9px] font-medium uppercase tracking-[0.22em]">
+            <nav aria-label="Main navigation" className="site-header__nav text-[11px] font-medium uppercase tracking-[0.18em]">
             {[
               ['/shop', 'Shop'],
               ['/about', 'About us'],
@@ -85,7 +85,7 @@ export function SiteHeader() {
                 </Link>
               ))}
             </nav>
-            <div className="mt-5 flex gap-5 text-[9px] uppercase tracking-[0.18em] text-[#181513]/50">
+            <div className="mt-5 flex gap-5 text-xs uppercase tracking-[0.16em] text-[#181513]/60">
               <Link href="/account" onClick={close}>Account</Link>
               <Link href="/shipping" onClick={close}>Shipping</Link>
               <Link href="/returns" onClick={close}>Returns</Link>
