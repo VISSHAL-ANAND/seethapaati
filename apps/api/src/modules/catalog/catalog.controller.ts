@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -26,6 +27,8 @@ import {
   CreateProductVariantRequest,
   UpdateProductVariantRequestSchema,
   UpdateProductVariantRequest,
+  AddProductImageRequestSchema,
+  AddProductImageRequest,
   CatalogListQuerySchema,
   CatalogListQuery,
   PermissionName,
@@ -97,6 +100,20 @@ export class CatalogController {
   // ADMIN PRODUCT MANAGEMENT
   // -------------------------------------------------------
 
+  @Get('admin/products')
+  @Permissions(PermissionName.PRODUCTS_READ)
+  async adminListProducts(@Query(new ZodValidationPipe(CatalogListQuerySchema)) query: CatalogListQuery) {
+    const data = await this.catalogService.listProducts(query, false);
+    return { success: true, ...data };
+  }
+
+  @Get('admin/products/:id')
+  @Permissions(PermissionName.PRODUCTS_READ)
+  async adminGetProductById(@Param('id', ParseUUIDPipe) id: string) {
+    const data = await this.catalogService.getProductById(id);
+    return { success: true, data };
+  }
+
   @Post('products')
   @Permissions(PermissionName.PRODUCTS_CREATE)
   @UsePipes(new ZodValidationPipe(CreateProductRequestSchema))
@@ -137,6 +154,30 @@ export class CatalogController {
     @Body(new ZodValidationPipe(UpdateProductVariantRequestSchema)) dto: UpdateProductVariantRequest,
   ) {
     const data = await this.catalogService.updateVariant(variantId, dto);
+    return { success: true, data };
+  }
+
+  // -------------------------------------------------------
+  // ADMIN IMAGE MANAGEMENT
+  // -------------------------------------------------------
+
+  @Post('products/:productId/images')
+  @Permissions(PermissionName.PRODUCTS_UPDATE)
+  async addProductImage(
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Body(new ZodValidationPipe(AddProductImageRequestSchema)) dto: AddProductImageRequest,
+  ) {
+    const data = await this.catalogService.addImage(productId, dto);
+    return { success: true, data };
+  }
+
+  @Delete('products/:productId/images/:imageId')
+  @Permissions(PermissionName.PRODUCTS_UPDATE)
+  async deleteProductImage(
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Param('imageId', ParseUUIDPipe) imageId: string,
+  ) {
+    const data = await this.catalogService.deleteImage(productId, imageId);
     return { success: true, data };
   }
 }
