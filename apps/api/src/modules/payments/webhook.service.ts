@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   NotFoundException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RazorpayAdapter } from './razorpay.adapter';
@@ -13,6 +14,8 @@ import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { OutboxService } from '../invoicing/outbox.service';
 import { randomUUID } from 'crypto';
 import { NotificationService } from '../notifications/notification.service';
+import { ShippingService } from '../fulfillment/shipping.service';
+import { RedisService } from '../redis/redis.service';
 
 export interface WebhookProcessingResult {
   success: boolean;
@@ -44,6 +47,8 @@ export class WebhookService {
     private paymentsService: PaymentsService,
     private outboxService: OutboxService,
     private notificationService: NotificationService,
+    @Optional() private shippingService?: ShippingService,
+    @Optional() private redis?: RedisService,
   ) {}
 
   /**
@@ -387,6 +392,17 @@ export class WebhookService {
     this.logger.log(
       `Order ${result.orderId} finalized as ${result.status} (${result.reason}) via webhook`,
     );
+
+    if (this.redis) {
+      await this.redis.delByPattern('catalog:*');
+    }
+
+    // Push paid order to Shiprocket in background if configured
+    if (result.status === OrderStatus.PAID && this.shippingService) {
+      this.shippingService
+        .pushOrderToShiprocket(result.orderId)
+        .catch((err) => this.logger.warn(`Background Shiprocket push error: ${err.message}`));
+    }
 
     return {
       success: true,

@@ -165,6 +165,70 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     this.memoryFallback.delete(key);
   }
 
+  async getJson<T>(key: string): Promise<T | null> {
+    try {
+      const raw = await this.get(key);
+      if (!raw) return null;
+      return JSON.parse(raw) as T;
+    } catch (err) {
+      this.logger.warn(`Failed to parse cached JSON for key '${key}': ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  async setJson<T>(key: string, data: T, ttlSeconds?: number): Promise<void> {
+    try {
+      const serialized = JSON.stringify(data);
+      await this.set(key, serialized, ttlSeconds);
+    } catch (err) {
+      this.logger.warn(`Failed to serialize JSON for key '${key}': ${(err as Error).message}`);
+    }
+  }
+
+  async delByPattern(pattern: string): Promise<number> {
+    let deletedCount = 0;
+    if (this.isConnected && this.client) {
+      try {
+        const stream = this.client.scanStream({
+          match: pattern,
+          count: 100,
+        });
+
+        const keysToDelete: string[] = [];
+        for await (const resultKeys of stream) {
+          if (resultKeys && resultKeys.length) {
+            keysToDelete.push(...resultKeys);
+          }
+        }
+
+        if (keysToDelete.length > 0) {
+          for (let i = 0; i < keysToDelete.length; i += 500) {
+            const batch = keysToDelete.slice(i, i + 500);
+            deletedCount += await this.client.del(...batch);
+          }
+        }
+        return deletedCount;
+      } catch (err) {
+        if (this.isProduction) {
+          throw new Error(`[RedisService] Redis delByPattern failed in production: ${(err as Error).message}`);
+        }
+      }
+    }
+
+    if (!this.memoryFallbackAllowed) {
+      throw new Error(`[RedisService] Redis is unreachable and memory fallback is disabled in production.`);
+    }
+
+    const regex = new RegExp('^' + pattern.replace(/[-[\]{}()+?.,\\^$|#\s]/g, '\\$&').replace(/\*/g, '.*') + '$');
+    for (const key of Array.from(this.memoryFallback.keys())) {
+      if (regex.test(key)) {
+        this.memoryFallback.delete(key);
+        deletedCount++;
+      }
+    }
+    return deletedCount;
+  }
+
   isReady(): boolean {
     return this.isConnected;
   }

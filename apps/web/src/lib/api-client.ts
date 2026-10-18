@@ -32,17 +32,35 @@ export async function fetchApi<T>(
     credentials: 'include', // Include HttpOnly auth cookies
   });
 
-  const json = await response.json();
+  const contentType = response.headers.get('content-type') || '';
+  let json: any = null;
 
-  if (!response.ok || json.success === false) {
-    const errorJson = json as ApiErrorResponse;
+  if (contentType.includes('application/json')) {
+    try {
+      json = await response.json();
+    } catch {
+      json = null;
+    }
+  } else {
+    const text = await response.text();
+    if (!response.ok) {
+      throw new ApiClientError(
+        `HTTP_${response.status}`,
+        text || `Request failed with HTTP status ${response.status}`
+      );
+    }
+    return (text as unknown) as T;
+  }
+
+  if (!response.ok || (json && json.success === false)) {
+    const errorJson = json as ApiErrorResponse | null;
     throw new ApiClientError(
-      errorJson.error?.code || 'UNKNOWN_ERROR',
-      errorJson.error?.message || 'An unexpected API error occurred',
-      errorJson.error?.details
+      errorJson?.error?.code || `HTTP_${response.status}`,
+      errorJson?.error?.message || `Request failed with status ${response.status}`,
+      errorJson?.error?.details
     );
   }
 
   const successJson = json as ApiResponse<T>;
-  return successJson.data;
+  return successJson?.data !== undefined ? successJson.data : (json as T);
 }

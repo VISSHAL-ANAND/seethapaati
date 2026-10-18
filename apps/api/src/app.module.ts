@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { validateEnv } from './config/env.schema';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { RedisModule } from './modules/redis/redis.module';
@@ -32,6 +33,23 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
       validate: validateEnv,
     }),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 1000,
+        limit: 30,
+      },
+      {
+        name: 'medium',
+        ttl: 10000,
+        limit: 150,
+      },
+      {
+        name: 'long',
+        ttl: 60000,
+        limit: 600,
+      },
+    ]),
     PrismaModule,
     RedisModule,
     QueueModule,
@@ -58,6 +76,10 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
     },
     {
       provide: APP_GUARD,

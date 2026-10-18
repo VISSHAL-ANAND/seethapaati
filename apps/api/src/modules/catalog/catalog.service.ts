@@ -3,8 +3,10 @@ import {
   NotFoundException,
   ConflictException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import {
   CreateCategoryRequest,
   UpdateCategoryRequest,
@@ -13,6 +15,7 @@ import {
   CreateProductVariantRequest,
   UpdateProductVariantRequest,
   CatalogListQuery,
+  AddProductImageRequest,
 } from '@seethapaati/contracts';
 import { Prisma } from '@prisma/client';
 
@@ -20,13 +23,32 @@ import { Prisma } from '@prisma/client';
 export class CatalogService {
   private readonly logger = new Logger(CatalogService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private redis?: RedisService,
+  ) {}
+
+  async invalidateCatalogCache(): Promise<void> {
+    if (!this.redis) return;
+    try {
+      await this.redis.delByPattern('catalog:*');
+      this.logger.log('Catalog Redis cache invalidated (catalog:*)');
+    } catch (err) {
+      this.logger.warn(`Failed to invalidate catalog cache: ${(err as Error).message}`);
+    }
+  }
 
   // -------------------------------------------------------
   // CATEGORIES
   // -------------------------------------------------------
 
   async listCategories() {
+    const cacheKey = 'catalog:categories:tree';
+    if (this.redis) {
+      const cached = await this.redis.getJson<any[]>(cacheKey);
+      if (cached) return cached;
+    }
+
     const all = await this.prisma.category.findMany({
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
@@ -45,12 +67,29 @@ export class CatalogService {
     }
 
     // Return only root-level categories (no parent)
-    return Array.from(nodeMap.values()).filter((node) => node.parentId === null);
+    const tree = Array.from(nodeMap.values()).filter((node) => node.parentId === null);
+
+    if (this.redis) {
+      await this.redis.setJson(cacheKey, tree, 300);
+    }
+
+    return tree;
   }
 
   async getCategoryBySlug(slug: string) {
+    const cacheKey = `catalog:category:${slug}`;
+    if (this.redis) {
+      const cached = await this.redis.getJson<any>(cacheKey);
+      if (cached) return cached;
+    }
+
     const cat = await this.prisma.category.findUnique({ where: { slug } });
     if (!cat) throw new NotFoundException({ error: 'CATEGORY_NOT_FOUND', message: `Category '${slug}' not found` });
+
+    if (this.redis) {
+      await this.redis.setJson(cacheKey, cat, 300);
+    }
+
     return cat;
   }
 
@@ -65,7 +104,7 @@ export class CatalogService {
       if (!parent) throw new NotFoundException({ error: 'PARENT_NOT_FOUND', message: 'Parent category not found' });
     }
 
-    return this.prisma.category.create({
+    const created = await this.prisma.category.create({
       data: {
         name: dto.name,
         slug: dto.slug,
@@ -74,6 +113,9 @@ export class CatalogService {
         sortOrder: dto.sortOrder ?? 0,
       },
     });
+
+    await this.invalidateCatalogCache();
+    return created;
   }
 
   async updateCategory(categoryId: string, dto: UpdateCategoryRequest) {
@@ -85,7 +127,9 @@ export class CatalogService {
       if (slugConflict) throw new ConflictException({ error: 'SLUG_IN_USE', message: `Slug '${dto.slug}' already in use` });
     }
 
-    return this.prisma.category.update({ where: { id: categoryId }, data: dto });
+    const updated = await this.prisma.category.update({ where: { id: categoryId }, data: dto });
+    await this.invalidateCatalogCache();
+    return updated;
   }
 
   // -------------------------------------------------------
@@ -93,23 +137,50 @@ export class CatalogService {
   // -------------------------------------------------------
 
   async listProducts(query: CatalogListQuery, isPublic = true) {
+    const cacheKey = isPublic ? `catalog:products:${JSON.stringify(query)}` : null;
+    if (cacheKey && this.redis) {
+      const cached = await this.redis.getJson<any>(cacheKey);
+      if (cached) return cached;
+    }
+
     const { page, limit, categorySlug, q, sortBy, sortDir } = query;
     const skip = (page - 1) * limit;
 
     const where: Prisma.ProductWhereInput = {};
 
-    // Public callers always see only ACTIVE products regardless of query param
-    where.status = isPublic ? 'ACTIVE' : (query.status ?? 'ACTIVE');
+    // Public callers always see only ACTIVE products; admin can filter or see all
+    if (isPublic) {
+      where.status = 'ACTIVE';
+    } else if (query.status) {
+      where.status = query.status;
+    }
 
     if (categorySlug) {
       const cat = await this.prisma.category.findUnique({ where: { slug: categorySlug } });
       if (cat) where.categoryId = cat.id;
     }
 
+    if (query.placement) {
+      where.merchandising = {
+        path: ['placements'],
+        array_contains: query.placement,
+      };
+    }
+
+    if (query.label) {
+      where.OR = [
+        ...(where.OR || []),
+        { merchandising: { path: ['badge'], equals: query.label } },
+        { merchandising: { path: ['labels'], array_contains: query.label } },
+      ];
+    }
+
     if (q) {
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
         { description: { contains: q, mode: 'insensitive' } },
+        { slug: { contains: q, mode: 'insensitive' } },
+        { variants: { some: { sku: { contains: q, mode: 'insensitive' } } } },
       ];
     }
 
@@ -131,17 +202,17 @@ export class CatalogService {
         include: {
           category: { select: { id: true, name: true, slug: true } },
           brand: { select: { id: true, name: true } },
-          images: { orderBy: { sortOrder: 'asc' }, take: 1 },
+          images: { orderBy: { sortOrder: 'asc' }, ...(isPublic ? { take: 1 } : {}) },
           variants: {
-            where: { status: 'ACTIVE' },
-            include: { inventory: { select: { quantityAvailable: true, quantityReserved: true } } },
+            where: isPublic ? { status: 'ACTIVE' } : undefined,
+            include: { inventory: { select: { quantityAvailable: true, quantityReserved: true, reorderThreshold: true } } },
             orderBy: { priceCents: 'asc' },
           },
         },
       }),
     ]);
 
-    return {
+    const result = {
       data: products.map(this.formatProduct),
       pagination: {
         page,
@@ -150,9 +221,21 @@ export class CatalogService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    if (cacheKey && this.redis) {
+      await this.redis.setJson(cacheKey, result, 300);
+    }
+
+    return result;
   }
 
   async getProductBySlug(slug: string, isPublic = true) {
+    const cacheKey = isPublic ? `catalog:product:slug:${slug}` : null;
+    if (cacheKey && this.redis) {
+      const cached = await this.redis.getJson<any>(cacheKey);
+      if (cached) return cached;
+    }
+
     const product = await this.prisma.product.findUnique({
       where: { slug },
       include: {
@@ -160,7 +243,7 @@ export class CatalogService {
         brand: { select: { id: true, name: true } },
         images: { orderBy: { sortOrder: 'asc' } },
         variants: {
-          include: { inventory: { select: { quantityAvailable: true, quantityReserved: true } } },
+          include: { inventory: { select: { quantityAvailable: true, quantityReserved: true, reorderThreshold: true } } },
           orderBy: { priceCents: 'asc' },
         },
       },
@@ -170,7 +253,11 @@ export class CatalogService {
       throw new NotFoundException({ error: 'PRODUCT_NOT_FOUND', message: `Product '${slug}' not found` });
     }
 
-    return this.formatProduct(product);
+    const formatted = this.formatProduct(product);
+    if (cacheKey && this.redis) {
+      await this.redis.setJson(cacheKey, formatted, 300);
+    }
+    return formatted;
   }
 
   async getProductById(productId: string) {
@@ -181,7 +268,7 @@ export class CatalogService {
         brand: { select: { id: true, name: true } },
         images: { orderBy: { sortOrder: 'asc' } },
         variants: {
-          include: { inventory: { select: { quantityAvailable: true, quantityReserved: true } } },
+          include: { inventory: { select: { quantityAvailable: true, quantityReserved: true, reorderThreshold: true } } },
           orderBy: { priceCents: 'asc' },
         },
       },
@@ -213,11 +300,21 @@ export class CatalogService {
         categoryId: dto.categoryId,
         brandId: dto.brandId,
         status: dto.status ?? 'DRAFT',
+        merchandising: (dto.merchandising as any) ?? {},
+      },
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+        brand: { select: { id: true, name: true } },
+        images: { orderBy: { sortOrder: 'asc' } },
+        variants: {
+          include: { inventory: { select: { quantityAvailable: true, quantityReserved: true, reorderThreshold: true } } },
+        },
       },
     });
 
     this.logger.log(`Product created: ${product.id} — ${product.name}`);
-    return product;
+    await this.invalidateCatalogCache();
+    return this.formatProduct(product);
   }
 
   async updateProduct(productId: string, dto: UpdateProductRequest) {
@@ -234,13 +331,28 @@ export class CatalogService {
       if (!cat) throw new NotFoundException({ error: 'CATEGORY_NOT_FOUND', message: 'Category not found' });
     }
 
+    const dataToUpdate: any = { ...dto };
+    if (dto.merchandising !== undefined) {
+      dataToUpdate.merchandising = dto.merchandising ?? {};
+    }
+
     const updated = await this.prisma.product.update({
       where: { id: productId },
-      data: dto,
+      data: dataToUpdate,
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+        brand: { select: { id: true, name: true } },
+        images: { orderBy: { sortOrder: 'asc' } },
+        variants: {
+          include: { inventory: { select: { quantityAvailable: true, quantityReserved: true, reorderThreshold: true } } },
+          orderBy: { priceCents: 'asc' },
+        },
+      },
     });
 
     this.logger.log(`Product updated: ${productId}`);
-    return updated;
+    await this.invalidateCatalogCache();
+    return this.formatProduct(updated);
   }
 
   // -------------------------------------------------------
@@ -291,6 +403,7 @@ export class CatalogService {
     });
 
     this.logger.log(`Variant created: ${result.id} — SKU: ${result.sku}`);
+    await this.invalidateCatalogCache();
     return result;
   }
 
@@ -303,10 +416,50 @@ export class CatalogService {
       if (skuConflict) throw new ConflictException({ error: 'SKU_IN_USE', message: `SKU '${dto.sku}' already in use` });
     }
 
-    return this.prisma.productVariant.update({
+    const updated = await this.prisma.productVariant.update({
       where: { id: variantId },
       data: dto,
+      include: {
+        inventory: true,
+      },
     });
+
+    await this.invalidateCatalogCache();
+    return updated;
+  }
+
+  // -------------------------------------------------------
+  // PRODUCT IMAGES
+  // -------------------------------------------------------
+
+  async addImage(productId: string, dto: AddProductImageRequest) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundException({ error: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
+
+    const image = await this.prisma.productImage.create({
+      data: {
+        productId,
+        url: dto.url,
+        altText: dto.altText || '',
+        sortOrder: dto.sortOrder ?? 0,
+      },
+    });
+
+    this.logger.log(`Image added: ${image.id} for product ${productId}`);
+    await this.invalidateCatalogCache();
+    return image;
+  }
+
+  async deleteImage(productId: string, imageId: string) {
+    const image = await this.prisma.productImage.findFirst({
+      where: { id: imageId, productId },
+    });
+    if (!image) throw new NotFoundException({ error: 'IMAGE_NOT_FOUND', message: 'Product image not found' });
+
+    await this.prisma.productImage.delete({ where: { id: imageId } });
+    this.logger.log(`Image deleted: ${imageId}`);
+    await this.invalidateCatalogCache();
+    return { success: true, message: 'Image deleted successfully' };
   }
 
   // -------------------------------------------------------
@@ -322,18 +475,24 @@ export class CatalogService {
       status: product.status,
       rating: product.rating,
       reviewCount: product.reviewCount,
+      merchandising: product.merchandising ?? { badge: null, labels: [], placements: [], hero: null },
       category: product.category,
       brand: product.brand,
       images: product.images || [],
       variants: (product.variants || []).map((v: any) => ({
         id: v.id,
+        productId: v.productId,
         sku: v.sku,
         name: v.name,
+        hsnCode: v.hsnCode,
         weightGrams: v.weightGrams,
         packType: v.packType,
         priceCents: v.priceCents,
         compareAtPriceCents: v.compareAtPriceCents,
         status: v.status,
+        quantityAvailable: v.inventory?.quantityAvailable ?? 0,
+        quantityReserved: v.inventory?.quantityReserved ?? 0,
+        reorderThreshold: v.inventory?.reorderThreshold ?? 5,
         availableStock: v.inventory ? Math.max(0, v.inventory.quantityAvailable - v.inventory.quantityReserved) : 0,
         isAvailable: v.inventory
           ? v.status === 'ACTIVE' && v.inventory.quantityAvailable > v.inventory.quantityReserved

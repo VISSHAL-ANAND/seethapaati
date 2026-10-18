@@ -42,6 +42,53 @@ export const UpdateCategoryRequestSchema = CreateCategoryRequestSchema.partial()
 export type UpdateCategoryRequest = z.input<typeof UpdateCategoryRequestSchema>;
 
 // -------------------------------------------------------
+// MERCHANDISING CONTRACTS
+// -------------------------------------------------------
+
+export const MerchandisingLabelSchema = z.enum([
+  'NEW',
+  'NEW_ARRIVAL',
+  'FEATURED',
+  'BESTSELLER',
+  'LIMITED',
+  'SALE',
+  'COMING_SOON',
+]);
+export type MerchandisingLabel = z.infer<typeof MerchandisingLabelSchema>;
+
+export const MerchandisingPlacementSchema = z.enum([
+  'HERO',
+  'NEW_ARRIVALS',
+  'FEATURED',
+  'BESTSELLERS',
+  'SALE',
+  'RECOMMENDED',
+]);
+export type MerchandisingPlacement = z.infer<typeof MerchandisingPlacementSchema>;
+
+export const HeroConfigurationSchema = z.object({
+  desktopImageUrl: z.string().optional(),
+  mobileImageUrl: z.string().optional(),
+  headline: z.string().max(160).optional(),
+  subheadline: z.string().max(500).optional(),
+  ctaLabel: z.string().max(60).optional(),
+  ctaDestination: z.string().max(200).optional(),
+  priority: z.number().int().min(0).default(0),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+export type HeroConfiguration = z.infer<typeof HeroConfigurationSchema>;
+
+export const ProductMerchandisingSchema = z.object({
+  badge: MerchandisingLabelSchema.optional(),
+  labels: z.array(MerchandisingLabelSchema).default([]),
+  placements: z.array(MerchandisingPlacementSchema).default([]),
+  priority: z.number().int().min(0).default(0),
+  hero: HeroConfigurationSchema.optional(),
+});
+export type ProductMerchandising = z.infer<typeof ProductMerchandisingSchema>;
+
+// -------------------------------------------------------
 // PRODUCT CONTRACTS
 // -------------------------------------------------------
 
@@ -55,6 +102,7 @@ export const CreateProductRequestSchema = z.object({
   categoryId: z.string().uuid(),
   brandId: z.string().uuid().optional(),
   status: ProductStatusSchema.default('DRAFT'),
+  merchandising: ProductMerchandisingSchema.optional(),
 });
 
 export type CreateProductRequest = z.input<typeof CreateProductRequestSchema>;
@@ -75,6 +123,9 @@ export const ProductVariantDtoSchema = z.object({
   status: VariantStatusSchema.default(VariantStatus.ACTIVE),
   availableStock: z.number().int().nonnegative(),
   isAvailable: z.boolean(),
+  quantityAvailable: z.number().int().optional(),
+  quantityReserved: z.number().int().optional(),
+  reorderThreshold: z.number().int().optional(),
 });
 
 export type ProductVariantDto = z.infer<typeof ProductVariantDtoSchema>;
@@ -88,6 +139,14 @@ export const ProductImageDtoSchema = z.object({
 
 export type ProductImageDto = z.infer<typeof ProductImageDtoSchema>;
 
+export const AddProductImageRequestSchema = z.object({
+  url: z.string().min(1, 'Image URL is required'),
+  altText: z.string().max(255).optional().default(''),
+  sortOrder: z.number().int().optional().default(0),
+});
+
+export type AddProductImageRequest = z.input<typeof AddProductImageRequestSchema>;
+
 export const ProductDtoSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
@@ -100,13 +159,14 @@ export const ProductDtoSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
     slug: z.string(),
-  }).optional(),
+  }).nullable().optional(),
   brand: z.object({
     id: z.string().uuid(),
     name: z.string(),
   }).nullable().optional(),
   images: z.array(ProductImageDtoSchema).default([]),
   variants: z.array(ProductVariantDtoSchema),
+  merchandising: ProductMerchandisingSchema.optional(),
   createdAt: z.date().or(z.string()).optional(),
   updatedAt: z.date().or(z.string()).optional(),
 });
@@ -132,7 +192,10 @@ export type CreateProductVariantRequest = z.input<typeof CreateProductVariantReq
 
 export const UpdateProductVariantRequestSchema = CreateProductVariantRequestSchema
   .omit({ initialStock: true })
-  .partial();
+  .partial()
+  .extend({
+    status: VariantStatusSchema.optional(),
+  });
 export type UpdateProductVariantRequest = z.input<typeof UpdateProductVariantRequestSchema>;
 
 // -------------------------------------------------------
@@ -145,6 +208,8 @@ export const CatalogListQuerySchema = z.object({
   categorySlug: z.string().optional(),
   status: ProductStatusSchema.optional(), // Only honoured by admin routes; public routes always force ACTIVE
   q: z.string().max(200).optional(),
+  placement: MerchandisingPlacementSchema.optional(),
+  label: MerchandisingLabelSchema.optional(),
   sortBy: z.enum(['createdAt', 'name', 'priceCents']).default('createdAt'),
   sortDir: z.enum(['asc', 'desc']).default('desc'),
 });

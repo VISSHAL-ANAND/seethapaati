@@ -14,6 +14,11 @@
     "typecheck": "npm --workspace=@seethapaati/contracts run typecheck && npm --workspace=@seethapaati/api run typecheck && npm --workspace=@seethapaati/web run typecheck",
     "test": "npm --workspace=@seethapaati/api run test",
     "lint": "npm --workspace=@seethapaati/api run lint && npm --workspace=@seethapaati/web run lint",
+    "start:api": "npm --workspace=@seethapaati/api run start:prod",
+    "start:web": "npm --workspace=@seethapaati/web run start",
+    "db:generate": "npm --workspace=@seethapaati/api run prisma:generate",
+    "db:migrate": "npm --workspace=@seethapaati/api run prisma:migrate",
+    "db:seed": "npm --workspace=@seethapaati/api run seed",
     "dev:api": "npm --workspace=@seethapaati/api run start:dev",
     "dev:web": "npm --workspace=@seethapaati/web run dev",
     "dev": "npm run build:contracts && npm --workspace=@seethapaati/api run start:dev"

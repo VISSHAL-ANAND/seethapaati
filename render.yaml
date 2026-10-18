@@ -1,0 +1,110 @@
+services:
+  # ---------------------------------------------------------------------------
+  # Backend NestJS API Web Service (Horizontal Auto-scaling: 2 to 10 instances)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: seethapaati-api
+    runtime: node
+    plan: starter
+    region: singapore
+    buildCommand: npm install && npm run build:contracts && npm run build:api
+    startCommand: npm run start:api
+    healthCheckPath: /api/v1/health
+    scaling:
+      minInstances: 2
+      maxInstances: 10
+      targetCPUPercent: 70
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: seethapaati-postgres
+          property: connectionString
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: seethapaati-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: seethapaati-redis
+          property: port
+      - key: CORS_ORIGIN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: orders@seethapaati.com
+      - key: SHIPROCKET_EMAIL
+        sync: false
+      - key: SHIPROCKET_PASSWORD
+        sync: false
+      - key: SHIPROCKET_CHANNEL_ID
+        sync: false
+      - key: SHIPROCKET_WEBHOOK_TOKEN
+        sync: false
+      - key: SELLER_LEGAL_NAME
+        value: Seethapaati Foods Private Limited
+      - key: SELLER_TRADE_NAME
+        value: Seethapaati
+      - key: SELLER_GSTIN
+        sync: false
+      - key: SELLER_STATE_CODE
+        value: "33"
+      - key: SELLER_PINCODE
+        value: "600004"
+
+  # ---------------------------------------------------------------------------
+  # Storefront Next.js App (Horizontal Auto-scaling: 2 to 10 instances)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: seethapaati-web
+    runtime: node
+    plan: starter
+    region: singapore
+    buildCommand: npm install && npm run build:contracts && npm run build:web
+    startCommand: npm run start:web
+    scaling:
+      minInstances: 2
+      maxInstances: 10
+      targetCPUPercent: 70
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_STORE_NAME
+        value: SEETHAPAATI
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://seethapaati.com
+      - key: NEXT_PUBLIC_RAZORPAY_KEY_ID
+        sync: false
+
+databases:
+  # Production PostgreSQL Database
+  - name: seethapaati-postgres
+    plan: starter
+    databaseName: seethapaati
+    user: postgres
+    region: singapore
+
+  # Production Redis for High-Speed Caching, Throttling & Queues
+  - name: seethapaati-redis
+    plan: starter
+    type: redis
+    region: singapore
+    ipAllowList: [] # internal access only
