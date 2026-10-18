@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { fetchApi, ApiClientError } from '../../../../lib/api-client';
@@ -132,8 +132,8 @@ export default function OrderConfirmationPage() {
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
   const [submittingReturn, setSubmittingReturn] = useState(false);
 
-  async function loadOrder() {
-    setLoading(true);
+  const loadOrder = useCallback(async (isPolling = false) => {
+    if (!isPolling) setLoading(true);
     setError('');
     try {
       const data = await fetchApi<Order>('/orders/' + orderId);
@@ -149,15 +149,26 @@ export default function OrderConfirmationPage() {
         router.replace('/account/login?next=' + encodeURIComponent('/orders/' + orderId + '/confirmation'));
         return;
       }
-      setError(err instanceof Error ? err.message : 'Unable to load this order.');
+      if (!isPolling) {
+        setError(err instanceof Error ? err.message : 'Unable to load this order.');
+      }
     } finally {
-      setLoading(false);
+      if (!isPolling) setLoading(false);
     }
-  }
+  }, [orderId, router]);
 
   useEffect(() => {
     loadOrder().catch(() => undefined);
-  }, [orderId]);
+  }, [loadOrder]);
+
+  // If order is pending payment, poll every 3 seconds for up to 30 seconds to catch webhook confirmation
+  useEffect(() => {
+    if (order?.status !== 'PENDING_PAYMENT') return;
+    const interval = setInterval(() => {
+      loadOrder(true).catch(() => undefined);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [order?.status, loadOrder]);
 
   const totalReturnQty = useMemo(
     () => Object.values(returnQty).reduce((sum, value) => sum + value, 0),

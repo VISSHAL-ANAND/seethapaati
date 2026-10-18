@@ -4,9 +4,10 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Script from 'next/script';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ShieldCheck, Lock, Check } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Lock, Check, Tag } from 'lucide-react';
 import type { CartResponse, UserProfile } from '@seethapaati/contracts';
 import { fetchApi, ApiClientError } from '../../lib/api-client';
+import { useCart } from '../../context/CartContext';
 
 declare global {
   interface Window {
@@ -27,13 +28,52 @@ type Address = {
   isDefault: boolean;
 };
 
+const INDIAN_STATES = [
+  { code: '33', name: 'Tamil Nadu' },
+  { code: '29', name: 'Karnataka' },
+  { code: '32', name: 'Kerala' },
+  { code: '36', name: 'Telangana' },
+  { code: '37', name: 'Andhra Pradesh' },
+  { code: '27', name: 'Maharashtra' },
+  { code: '07', name: 'Delhi' },
+  { code: '24', name: 'Gujarat' },
+  { code: '08', name: 'Rajasthan' },
+  { code: '09', name: 'Uttar Pradesh' },
+  { code: '19', name: 'West Bengal' },
+  { code: '23', name: 'Madhya Pradesh' },
+  { code: '06', name: 'Haryana' },
+  { code: '03', name: 'Punjab' },
+  { code: '21', name: 'Odisha' },
+  { code: '10', name: 'Bihar' },
+  { code: '20', name: 'Jharkhand' },
+  { code: '22', name: 'Chhattisgarh' },
+  { code: '30', name: 'Goa' },
+  { code: '05', name: 'Uttarakhand' },
+  { code: '02', name: 'Himachal Pradesh' },
+  { code: '01', name: 'Jammu & Kashmir' },
+  { code: '18', name: 'Assam' },
+  { code: '34', name: 'Puducherry' },
+  { code: '31', name: 'Lakshadweep' },
+  { code: '35', name: 'Andaman & Nicobar Islands' },
+  { code: '11', name: 'Sikkim' },
+  { code: '12', name: 'Arunachal Pradesh' },
+  { code: '13', name: 'Nagaland' },
+  { code: '14', name: 'Manipur' },
+  { code: '15', name: 'Mizoram' },
+  { code: '16', name: 'Tripura' },
+  { code: '17', name: 'Meghalaya' },
+  { code: '04', name: 'Chandigarh' },
+  { code: '26', name: 'Dadra and Nagar Haveli and Daman and Diu' },
+  { code: '38', name: 'Ladakh' },
+];
+
 const emptyAddress: Address = {
   fullName: '',
   phone: '',
   addressLine1: '',
   addressLine2: '',
-  city: '',
-  state: '',
+  city: 'Chennai',
+  state: 'Tamil Nadu',
   postalCode: '',
   country: 'IN',
   isDefault: true,
@@ -41,43 +81,103 @@ const emptyAddress: Address = {
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const { coupon: savedCoupon, refreshCart } = useCart();
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [address, setAddress] = useState<Address>(emptyAddress);
-  const [stateCode, setStateCode] = useState('');
-  const [coupon, setCoupon] = useState('');
+  const [stateCode, setStateCode] = useState('33');
+  const [coupon, setCoupon] = useState(savedCoupon || '');
+  const [couponAppliedNotice, setCouponAppliedNotice] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      fetchApi<CartResponse>('/cart'),
-      fetchApi<UserProfile>('/users/me'),
-      fetchApi<Address[]>('/users/me/addresses'),
-    ])
-      .then(([nextCart, nextProfile, nextAddresses]) => {
-        setCart(nextCart);
-        setProfile(nextProfile);
-        setAddresses(nextAddresses);
-        const preferred = nextAddresses.find((a) => a.isDefault) ?? nextAddresses[0];
-        if (preferred) setAddress(preferred);
-        else setAddress((a) => ({ ...a, fullName: nextProfile.fullName, phone: nextProfile.phone ?? '' }));
-      })
-      .catch((err) => {
-        if (err instanceof ApiClientError && ['UNAUTHORIZED', 'USER_NOT_FOUND'].includes(err.code)) {
-          router.replace('/account/login?next=/checkout');
-        } else {
-          setError(err instanceof Error ? err.message : 'Unable to load checkout');
+    // If saved coupon exists, sync it
+    if (savedCoupon && !coupon) {
+      setCoupon(savedCoupon);
+    }
+  }, [savedCoupon]);
+
+  const loadCheckoutData = async (couponToApply?: string) => {
+    const activeCoupon = couponToApply !== undefined ? couponToApply : coupon;
+    const cartUrl = activeCoupon ? `/cart?coupon=${encodeURIComponent(activeCoupon)}` : '/cart';
+
+    try {
+      const [nextCart, nextProfile, nextAddresses] = await Promise.all([
+        fetchApi<CartResponse>(cartUrl),
+        fetchApi<UserProfile>('/users/me'),
+        fetchApi<Address[]>('/users/me/addresses'),
+      ]);
+
+      setCart(nextCart);
+      setProfile(nextProfile);
+      setAddresses(nextAddresses);
+
+      const preferred = nextAddresses.find((a) => a.isDefault) ?? nextAddresses[0];
+      if (preferred) {
+        setAddress(preferred);
+        // Map address.state to stateCode if possible
+        const matched = INDIAN_STATES.find(
+          (s) => s.name.toLowerCase() === preferred.state?.toLowerCase()
+        );
+        if (matched) {
+          setStateCode(matched.code);
         }
-      })
-      .finally(() => setLoading(false));
+      } else {
+        setAddress((a) => ({
+          ...a,
+          fullName: nextProfile.fullName || '',
+          phone: nextProfile.phone ?? '',
+        }));
+      }
+    } catch (err) {
+      if (err instanceof ApiClientError && ['UNAUTHORIZED', 'USER_NOT_FOUND'].includes(err.code)) {
+        router.replace('/account/login?next=/checkout');
+      } else {
+        setError(err instanceof Error ? err.message : 'Unable to load checkout');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCheckoutData();
   }, [router]);
 
   function setField<K extends keyof Address>(key: K, value: Address[K]) {
     setAddress((a) => ({ ...a, [key]: value }));
+  }
+
+  function handleStateChange(selectedCode: string) {
+    setStateCode(selectedCode);
+    const matched = INDIAN_STATES.find((s) => s.code === selectedCode);
+    if (matched) {
+      setAddress((a) => ({ ...a, state: matched.name }));
+    }
+  }
+
+  async function handleApplyCoupon(code: string) {
+    const trimmed = code.trim().toUpperCase();
+    setCoupon(trimmed);
+    setError('');
+    setCouponAppliedNotice('');
+    try {
+      const updatedCart = await fetchApi<CartResponse>(`/cart?coupon=${encodeURIComponent(trimmed)}`);
+      setCart(updatedCart);
+      if (updatedCart.pricing.couponCode) {
+        setCouponAppliedNotice(`Promo code "${trimmed}" applied successfully!`);
+        refreshCart(trimmed);
+      } else {
+        setError('Coupon code not applicable or minimum order threshold not met.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid promo code');
+    }
   }
 
   async function saveAddress() {
@@ -102,6 +202,12 @@ export default function CheckoutPage() {
     setError('');
     setPaying(true);
 
+    if (!termsAccepted) {
+      setError('Please acknowledge and accept our Terms & Conditions and Allergen disclosures to proceed.');
+      setPaying(false);
+      return;
+    }
+
     try {
       const shippingAddress = { ...address, stateCode, country: 'IN' };
       if (
@@ -113,7 +219,7 @@ export default function CheckoutPage() {
         !shippingAddress.postalCode ||
         !/^[0-9]{2}$/.test(stateCode)
       ) {
-        throw new Error('Please complete the shipping address and enter a valid two-digit GST state code.');
+        throw new Error('Please complete the delivery address and select a valid State.');
       }
 
       const intent = await fetchApi<{
@@ -142,7 +248,13 @@ export default function CheckoutPage() {
         amount: intent.amountCents,
         currency: intent.currency,
         name: 'SEETHAPAATI',
+        description: `Order ${intent.orderNumber} — Artisanal Pantry`,
+        image: '/images/masala.jpg',
         order_id: intent.gatewayOrderId,
+        theme: {
+          color: '#B8860B',
+          backdrop_color: '#181513',
+        },
         prefill: {
           name: shippingAddress.fullName,
           email: profile.email,
@@ -166,9 +278,21 @@ export default function CheckoutPage() {
           }
         },
         modal: {
-          ondismiss: () => setPaying(false),
+          ondismiss: () => {
+            setPaying(false);
+          },
         },
       });
+
+      if (typeof (payment as any).on === 'function') {
+        (payment as any).on('payment.failed', function (resp: any) {
+          setError(
+            resp?.error?.description ||
+              'Payment could not be completed. Please check your card or UPI details and try again.'
+          );
+          setPaying(false);
+        });
+      }
 
       payment.open();
     } catch (err) {
@@ -199,7 +323,7 @@ export default function CheckoutPage() {
       <>
         <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
         <main className="mx-auto max-w-2xl px-6 py-28 text-center md:py-36">
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#B8860B]">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#B8860B]">
             Checkout Gateway
           </p>
           <h1 className="mt-4 font-serif text-4xl text-[#181513]">
@@ -223,7 +347,7 @@ export default function CheckoutPage() {
       <>
         <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
         <main className="mx-auto max-w-2xl px-6 py-28 text-center md:py-36">
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#B8860B]">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#B8860B]">
             Secure Checkout
           </p>
           <h1 className="mt-4 font-serif text-4xl text-[#181513] md:text-5xl">
@@ -234,7 +358,7 @@ export default function CheckoutPage() {
           </p>
           <Link
             href="/shop"
-            className="mt-8 inline-flex items-center gap-2 bg-[#181513] px-6 py-3 text-xs uppercase tracking-[0.18em] text-[#F7F5F0] transition hover:bg-[#2E2824]"
+            className="mt-8 inline-flex items-center gap-2 bg-[#181513] px-6 py-3.5 text-xs uppercase tracking-[0.18em] text-[#F7F5F0] transition hover:bg-[#B8860B]"
           >
             Explore the Collection
           </Link>
@@ -246,15 +370,15 @@ export default function CheckoutPage() {
   return (
     <>
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
-      <main className="mx-auto max-w-[1280px] px-6 pb-24 pt-10 md:px-10 md:pb-32 md:pt-16">
+      <main className="mx-auto max-w-[1280px] px-4 pb-24 pt-8 sm:px-6 md:px-10 md:pb-32 md:pt-14">
         {/* Header */}
-        <header className="border-b border-[#E3DFD7] pb-8">
-          <div className="flex flex-wrap items-end justify-between gap-5">
+        <header className="border-b border-[#E3DFD7] pb-6 sm:pb-8">
+          <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#B8860B]">
-                Secure Checkout
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#B8860B]">
+                Express Direct Checkout
               </p>
-              <h1 className="mt-3 font-serif text-5xl font-normal tracking-[-0.04em] text-[#181513] md:text-7xl">
+              <h1 className="mt-2 font-serif text-3xl font-normal tracking-[-0.03em] text-[#181513] sm:text-5xl md:text-6xl">
                 Delivery Details
               </h1>
             </div>
@@ -266,18 +390,19 @@ export default function CheckoutPage() {
               Back to Bag
             </Link>
           </div>
-          <p className="mt-3 max-w-2xl text-xs leading-relaxed text-[#181513]/60">
-            Final item pricing, GST calculation, inventory reservation, and delivery amounts are strictly authoritative and re-validated server-side.
-          </p>
+          <div className="mt-3 flex items-center gap-2 text-xs text-[#2E7D32]">
+            <ShieldCheck className="h-4 w-4" />
+            <span>256-Bit SSL Encrypted • Direct-from-Mylapore Dispatch</span>
+          </div>
         </header>
 
         {/* Checkout Form */}
-        <form onSubmit={submit} className="mt-10 grid gap-12 md:mt-14 md:grid-cols-[1fr_360px] lg:gap-16">
-          <section className="space-y-10">
+        <form onSubmit={submit} className="mt-8 grid gap-10 md:mt-12 md:grid-cols-[1fr_380px] lg:gap-16">
+          <section className="space-y-8">
             {/* Saved Addresses */}
             {addresses.length > 0 && (
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-[#181513]/60">
+                <p className="text-xs uppercase tracking-[0.2em] font-semibold text-[#181513]/70">
                   Select Saved Address
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -285,17 +410,23 @@ export default function CheckoutPage() {
                     <button
                       type="button"
                       key={a.id}
-                      onClick={() => setAddress(a)}
-                      className={`w-full border p-4 text-left text-xs transition-colors ${
+                      onClick={() => {
+                        setAddress(a);
+                        const matched = INDIAN_STATES.find(
+                          (s) => s.name.toLowerCase() === a.state?.toLowerCase()
+                        );
+                        if (matched) setStateCode(matched.code);
+                      }}
+                      className={`w-full border p-4 text-left text-xs transition-colors rounded-xs ${
                         address.id === a.id
-                          ? 'border-[#181513] bg-white/50 shadow-xs'
-                          : 'border-[#E3DFD7] hover:border-[#B8860B]'
+                          ? 'border-[#181513] bg-white shadow-xs ring-1 ring-[#181513]'
+                          : 'border-[#E3DFD7] bg-white/40 hover:border-[#B8860B]'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-[#181513]">{a.fullName}</span>
+                        <span className="font-semibold text-[#181513]">{a.fullName}</span>
                         {a.isDefault && (
-                          <span className="text-[10px] uppercase tracking-wider text-[#A66B18]">
+                          <span className="text-[10px] uppercase tracking-wider text-[#A66B18] font-medium">
                             Default
                           </span>
                         )}
@@ -312,73 +443,164 @@ export default function CheckoutPage() {
 
             {/* Delivery Address Form */}
             <div className="border-t border-[#181513] pt-7">
-              <p className="text-xs uppercase tracking-[0.2em] text-[#181513]/60">
-                Shipping Destination
+              <p className="text-xs uppercase tracking-[0.2em] font-semibold text-[#181513]/70">
+                Shipping Destination (India)
               </p>
 
               <div className="mt-6 grid gap-6 sm:grid-cols-2">
-                {([
-                  ['fullName', 'Full Name'],
-                  ['phone', 'Phone Number'],
-                  ['addressLine1', 'Address Line 1'],
-                  ['addressLine2', 'Apartment, Suite (Optional)'],
-                  ['city', 'City'],
-                  ['state', 'State'],
-                  ['postalCode', 'Postal Code / PIN'],
-                ] as const).map(([key, label]) => (
-                  <label key={key} className="block text-xs font-medium uppercase tracking-[0.16em] text-[#181513]/70">
-                    {label}
-                    <input
-                      required={key !== 'addressLine2'}
-                      value={String(address[key] ?? '')}
-                      onChange={(e) => setField(key, e.target.value)}
-                      className="mt-2 w-full border-b border-[#181513]/25 bg-transparent py-2.5 text-xs text-[#181513] outline-none transition focus:border-[#B8860B]"
-                    />
-                  </label>
-                ))}
-
-                <label className="block text-xs font-medium uppercase tracking-[0.16em] text-[#181513]/70">
-                  GST State Code (2-Digit)
+                <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-[#181513]/80">
+                  Full Name *
                   <input
                     required
-                    value={stateCode}
-                    maxLength={2}
-                    inputMode="numeric"
-                    pattern="[0-9]{2}"
-                    placeholder="e.g. 33 for Tamil Nadu"
-                    onChange={(e) => setStateCode(e.target.value.replace(/\D/g, '').slice(0, 2))}
-                    className="mt-2 w-full border-b border-[#181513]/25 bg-transparent py-2.5 text-xs text-[#181513] outline-none transition focus:border-[#B8860B]"
+                    value={address.fullName}
+                    onChange={(e) => setField('fullName', e.target.value)}
+                    placeholder="e.g. Meenakshi Sundaram"
+                    className="mt-2 w-full border-b border-[#181513]/30 bg-transparent py-2.5 text-xs text-[#181513] outline-none transition focus:border-[#B8860B]"
                   />
+                </label>
+
+                <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-[#181513]/80">
+                  Phone (for Delivery SMS/Call) *
+                  <input
+                    required
+                    type="tel"
+                    value={address.phone}
+                    onChange={(e) => setField('phone', e.target.value)}
+                    placeholder="+91 98765 43210"
+                    className="mt-2 w-full border-b border-[#181513]/30 bg-transparent py-2.5 text-xs text-[#181513] outline-none transition focus:border-[#B8860B]"
+                  />
+                </label>
+
+                <label className="block sm:col-span-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#181513]/80">
+                  Street Address & House No. *
+                  <input
+                    required
+                    value={address.addressLine1}
+                    onChange={(e) => setField('addressLine1', e.target.value)}
+                    placeholder="Door No, Building, Street Name"
+                    className="mt-2 w-full border-b border-[#181513]/30 bg-transparent py-2.5 text-xs text-[#181513] outline-none transition focus:border-[#B8860B]"
+                  />
+                </label>
+
+                <label className="block sm:col-span-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#181513]/80">
+                  Apartment, Suite, Landmark (Optional)
+                  <input
+                    value={address.addressLine2 || ''}
+                    onChange={(e) => setField('addressLine2', e.target.value)}
+                    placeholder="Near Temple / Landmark"
+                    className="mt-2 w-full border-b border-[#181513]/30 bg-transparent py-2.5 text-xs text-[#181513] outline-none transition focus:border-[#B8860B]"
+                  />
+                </label>
+
+                <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-[#181513]/80">
+                  City / Town *
+                  <input
+                    required
+                    value={address.city}
+                    onChange={(e) => setField('city', e.target.value)}
+                    placeholder="Chennai"
+                    className="mt-2 w-full border-b border-[#181513]/30 bg-transparent py-2.5 text-xs text-[#181513] outline-none transition focus:border-[#B8860B]"
+                  />
+                </label>
+
+                <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-[#181513]/80">
+                  PIN Code *
+                  <input
+                    required
+                    maxLength={6}
+                    inputMode="numeric"
+                    value={address.postalCode}
+                    onChange={(e) => setField('postalCode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="600004"
+                    className="mt-2 w-full border-b border-[#181513]/30 bg-transparent py-2.5 text-xs text-[#181513] outline-none transition focus:border-[#B8860B]"
+                  />
+                </label>
+
+                {/* Curated Indian State Selector (Auto sets GST State Code) */}
+                <label className="block sm:col-span-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#181513]/80">
+                  State / Territory *
+                  <div className="mt-2 relative">
+                    <select
+                      value={stateCode}
+                      onChange={(e) => handleStateChange(e.target.value)}
+                      className="w-full appearance-none border-b border-[#181513]/30 bg-transparent py-2.5 text-xs font-medium text-[#181513] outline-none transition focus:border-[#B8860B] cursor-pointer"
+                    >
+                      {INDIAN_STATES.map((state) => (
+                        <option key={state.code} value={state.code}>
+                          {state.name} (Code: {state.code})
+                        </option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-2 top-2.5 text-xs text-[#181513]/50">
+                      ▼
+                    </span>
+                  </div>
                 </label>
               </div>
 
-              <div className="mt-6">
+              <div className="mt-5">
                 <button
                   type="button"
                   disabled={savingAddress}
                   onClick={() => saveAddress()}
-                  className="text-xs text-[#A66B18] underline underline-offset-4 hover:text-[#181513] disabled:opacity-50"
+                  className="text-xs text-[#A66B18] font-medium underline underline-offset-4 hover:text-[#181513] disabled:opacity-50"
                 >
-                  {savingAddress ? 'Saving address…' : 'Save this address for future orders'}
+                  {savingAddress ? 'Saving address…' : 'Save this address to your account'}
                 </button>
               </div>
             </div>
 
-            {/* Coupon Code */}
+            {/* Coupon Code & 1-Tap Chips */}
             <div className="border-t border-[#E3DFD7] pt-7">
-              <label className="block text-xs font-medium uppercase tracking-[0.16em] text-[#181513]/70">
-                Promotional Coupon Code <span className="text-[#181513]/40">(Optional)</span>
+              <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-[#181513]/80">
+                Have a Festive or Promo Coupon?
+              </label>
+
+              <div className="mt-3 flex max-w-md items-center gap-2">
                 <input
                   value={coupon}
                   onChange={(e) => setCoupon(e.target.value.toUpperCase())}
-                  placeholder="e.g. WELCOME10"
-                  className="mt-2 w-full max-w-xs border-b border-[#181513]/25 bg-transparent py-2.5 text-xs uppercase tracking-wider text-[#181513] outline-none transition focus:border-[#B8860B]"
+                  placeholder="Enter code (e.g. SEETHA10)"
+                  className="flex-1 border-b border-[#181513]/30 bg-transparent py-2.5 text-xs uppercase tracking-wider text-[#181513] outline-none transition focus:border-[#B8860B]"
                 />
-              </label>
+                <button
+                  type="button"
+                  onClick={() => handleApplyCoupon(coupon)}
+                  className="border border-[#181513] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[#181513] hover:bg-[#181513] hover:text-[#F7F5F0] transition active:scale-95"
+                >
+                  Apply
+                </button>
+              </div>
+
+              {/* 1-Tap Coupon Chips */}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-[11px] text-[#181513]/60">Quick apply:</span>
+                <button
+                  type="button"
+                  onClick={() => handleApplyCoupon('SEETHA10')}
+                  className="inline-flex items-center gap-1 border border-dashed border-[#B8860B] bg-[#B8860B]/10 px-2.5 py-1 text-[11px] font-semibold text-[#B8860B] hover:bg-[#B8860B] hover:text-[#F7F5F0] transition rounded-xs"
+                >
+                  <Tag className="h-3 w-3" /> SEETHA10 (10% Off)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyCoupon('WELCOME50')}
+                  className="inline-flex items-center gap-1 border border-dashed border-[#B8860B] bg-[#B8860B]/10 px-2.5 py-1 text-[11px] font-semibold text-[#B8860B] hover:bg-[#B8860B] hover:text-[#F7F5F0] transition rounded-xs"
+                >
+                  <Tag className="h-3 w-3" /> WELCOME50 (₹50 Off)
+                </button>
+              </div>
+
+              {couponAppliedNotice && (
+                <p className="mt-2.5 flex items-center gap-1 text-xs text-[#2E7D32]">
+                  <Check className="h-3.5 w-3.5" />
+                  {couponAppliedNotice}
+                </p>
+              )}
             </div>
 
             {error && (
-              <p role="alert" className="border-l-2 border-red-700 bg-red-50 p-3 text-xs text-red-800">
+              <p role="alert" className="border-l-2 border-red-700 bg-red-50 p-3.5 text-xs text-red-800">
                 {error}
               </p>
             )}
@@ -386,11 +608,28 @@ export default function CheckoutPage() {
 
           {/* Order Summary Aside */}
           <aside className="h-fit border-t border-[#181513] pt-6 md:sticky md:top-10">
-            <p className="text-xs uppercase tracking-[0.2em] text-[#181513]/60">
-              Order Summary
+            <p className="text-xs uppercase tracking-[0.2em] font-semibold text-[#181513]/70">
+              Order Summary ({cart.items.reduce((s, i) => s + i.quantity, 0)} Items)
             </p>
 
-            <div className="mt-6 space-y-3.5 text-xs text-[#181513]">
+            {/* Item Mini List */}
+            <div className="mt-4 max-h-48 overflow-y-auto divide-y divide-[#E3DFD7]/60 pr-1 text-xs">
+              {cart.items.map((item) => (
+                <div key={item.variantId} className="flex items-center justify-between py-2">
+                  <div className="min-w-0 pr-3">
+                    <p className="truncate font-medium text-[#181513]">{item.productName}</p>
+                    <p className="text-[11px] text-[#181513]/55">
+                      Qty: {item.quantity} · {item.packType}
+                    </p>
+                  </div>
+                  <span className="tabular-nums text-[#181513] font-medium shrink-0">
+                    ₹{(item.lineTotalCents / 100).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 space-y-3 border-t border-[#E3DFD7] pt-4 text-xs text-[#181513]">
               <div className="flex justify-between">
                 <span className="text-[#181513]/70">Subtotal</span>
                 <span className="tabular-nums font-medium">
@@ -406,10 +645,10 @@ export default function CheckoutPage() {
               </div>
 
               <div className="flex justify-between">
-                <span className="text-[#181513]/70">Delivery</span>
+                <span className="text-[#181513]/70">Courier Shipping</span>
                 <span className="tabular-nums font-medium">
                   {cart.pricing.shippingCents === 0 ? (
-                    <span className="text-[#2E7D32]">Free</span>
+                    <span className="text-[#2E7D32] font-semibold">FREE (Above ₹499)</span>
                   ) : (
                     `₹${(cart.pricing.shippingCents / 100).toLocaleString('en-IN')}`
                   )}
@@ -417,34 +656,73 @@ export default function CheckoutPage() {
               </div>
 
               {cart.pricing.discountCents > 0 && (
-                <div className="flex justify-between text-[#B8860B]">
-                  <span>Discount</span>
-                  <span className="tabular-nums font-medium">
+                <div className="flex justify-between text-[#B8860B] font-medium">
+                  <span>Coupon Discount</span>
+                  <span className="tabular-nums">
                     −₹{(cart.pricing.discountCents / 100).toLocaleString('en-IN')}
                   </span>
                 </div>
               )}
             </div>
 
-            <div className="mt-6 flex justify-between border-t border-[#E3DFD7] pt-5 font-serif text-2xl text-[#181513]">
+            <div className="mt-5 flex justify-between border-t border-[#E3DFD7] pt-4 font-serif text-2xl text-[#181513]">
               <span>Grand Total</span>
-              <span className="tabular-nums">
+              <span className="tabular-nums font-normal">
                 ₹{(cart.pricing.grandTotalCents / 100).toLocaleString('en-IN')}
               </span>
+            </div>
+
+            <div className="mt-5 border-t border-[#E3DFD7] pt-4">
+              <label className="flex items-start gap-2.5 text-xs text-[#181513]/80 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  required
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded-xs border-[#181513]/40 text-[#181513] accent-[#B8860B] cursor-pointer shrink-0"
+                />
+                <span className="leading-snug">
+                  I have read and agree to Seethapaati&apos;s{' '}
+                  <Link
+                    href="/terms-and-conditions"
+                    target="_blank"
+                    className="font-semibold text-[#181513] underline underline-offset-2 hover:text-[#B8860B]"
+                  >
+                    Terms &amp; Conditions
+                  </Link>
+                  ,{' '}
+                  <Link
+                    href="/privacy-policy"
+                    target="_blank"
+                    className="font-semibold text-[#181513] underline underline-offset-2 hover:text-[#B8860B]"
+                  >
+                    Privacy Policy
+                  </Link>
+                  , and acknowledge the{' '}
+                  <Link
+                    href="/returns"
+                    target="_blank"
+                    className="font-semibold text-[#181513] underline underline-offset-2 hover:text-[#B8860B]"
+                  >
+                    Allergen &amp; Return Policies
+                  </Link>.
+                </span>
+              </label>
             </div>
 
             <button
               type="submit"
               disabled={paying}
-              className="mt-7 flex w-full items-center justify-center gap-2 bg-[#181513] px-6 py-4 text-xs uppercase tracking-[0.2em] text-[#F7F5F0] transition hover:bg-[#2E2824] disabled:opacity-50"
+              className="mt-6 flex w-full h-13 items-center justify-center gap-2 bg-[#181513] px-6 text-xs uppercase tracking-[0.2em] font-semibold text-[#F7F5F0] transition hover:bg-[#B8860B] active:scale-[0.99] disabled:opacity-50"
             >
-              <Lock className="h-3.5 w-3.5" />
-              {paying ? 'Connecting Gateway…' : 'Proceed to Payment'}
+              <Lock className="h-4 w-4" />
+              {paying ? 'Connecting Razorpay…' : 'Proceed to Payment'}
             </button>
 
-            <p className="mt-4 text-center text-[11px] text-[#181513]/40">
-              Encrypted end-to-end payment processing via Razorpay
-            </p>
+            <div className="mt-4 space-y-1 text-center text-[11px] text-[#181513]/50">
+              <p>Supports UPI (GPay, PhonePe, Paytm), NetBanking, Cards &amp; EMI.</p>
+              <p>Fast dispatch from our Mylapore kitchen within 24-48 hours.</p>
+            </div>
           </aside>
         </form>
       </main>

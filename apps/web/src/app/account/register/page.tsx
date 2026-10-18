@@ -71,10 +71,29 @@ export default function RegisterPage() {
         </p>
         <button
           disabled={loading}
-          className="w-full bg-[#181513] px-6 py-4 text-xs uppercase tracking-[0.2em] text-[#F7F5F0] transition hover:bg-[#2E2824] disabled:opacity-50"
+          className="w-full bg-[#181513] px-6 py-4 text-xs uppercase tracking-[0.2em] text-[#F7F5F0] transition hover:bg-[#2E2824] disabled:opacity-50 cursor-pointer"
         >
           {loading ? 'Creating account…' : 'Create account'}
         </button>
+
+        <p className="text-center text-[11px] leading-relaxed text-[#181513]/60">
+          By creating an account, you agree to Seethapaati&apos;s{' '}
+          <Link
+            href="/terms-and-conditions"
+            target="_blank"
+            className="font-medium text-[#181513] underline underline-offset-4 hover:text-[#B8860B]"
+          >
+            Terms &amp; Conditions
+          </Link>{' '}
+          and{' '}
+          <Link
+            href="/privacy-policy"
+            target="_blank"
+            className="font-medium text-[#181513] underline underline-offset-4 hover:text-[#B8860B]"
+          >
+            Privacy Policy
+          </Link>.
+        </p>
       </form>
       <p className="mt-8 text-xs text-[#181513]/65">
         Already registered?{' '}

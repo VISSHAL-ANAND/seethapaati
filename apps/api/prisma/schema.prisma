@@ -330,6 +330,7 @@ enum OrderStatus {
   PROCESSING
   PACKED
   SHIPPED
+  IN_TRANSIT
   OUT_FOR_DELIVERY
   DELIVERED
   PAYMENT_FAILED
@@ -352,6 +353,11 @@ model Order {
   grandTotalCents         Int         @map("grand_total_cents")
   shippingAddressSnapshot Json        @map("shipping_address_snapshot")
   billingAddressSnapshot  Json?       @map("billing_address_snapshot")
+  courierName             String?     @map("courier_name")
+  trackingNumber          String?     @map("tracking_number")
+  trackingUrl             String?     @map("tracking_url")
+  shippedAt               DateTime?   @map("shipped_at")
+  deliveredAt             DateTime?   @map("delivered_at")
   notes                   String?
   createdAt               DateTime    @default(now()) @map("created_at")
   updatedAt               DateTime    @updatedAt @map("updated_at")
@@ -707,6 +713,7 @@ enum ShipmentStatus {
   CREATED
   AWB_ASSIGNED
   SHIPPED
+  IN_TRANSIT
   OUT_FOR_DELIVERY
   DELIVERED
   CANCELLED

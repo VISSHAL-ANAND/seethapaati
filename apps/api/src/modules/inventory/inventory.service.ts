@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { UpdateInventoryRequest } from '@seethapaati/contracts';
 
 export interface ReservationRequest {
@@ -59,6 +60,7 @@ export class InventoryService {
   constructor(
     private prisma: PrismaService,
     @Optional() private configService?: ConfigService,
+    @Optional() private redis?: RedisService,
   ) {}
 
   async getInventory(variantId: string) {
@@ -128,6 +130,9 @@ export class InventoryService {
     });
 
     this.logger.log(`Inventory updated for ${variantId}: available=${result.quantityAvailable}`);
+    if (this.redis) {
+      await this.redis.delByPattern('catalog:*');
+    }
     return result;
   }
 
@@ -256,6 +261,9 @@ export class InventoryService {
     });
 
     this.logger.log(`Reservation ${reservationId} committed`);
+    if (this.redis) {
+      await this.redis.delByPattern('catalog:*');
+    }
   }
 
   /**
@@ -341,6 +349,9 @@ export class InventoryService {
 
     if (expiredCount > 0) {
       this.logger.log(`Expired ${expiredCount} stale reservation(s)`);
+      if (this.redis) {
+        await this.redis.delByPattern('catalog:*');
+      }
     }
     return expiredCount;
   }
@@ -522,10 +533,16 @@ export class InventoryService {
       return committedCount;
     };
 
+    let finalCount = 0;
     if (txClient) {
-      return await execute(txClient);
+      finalCount = await execute(txClient);
+    } else {
+      finalCount = await this.prisma.$transaction(execute);
     }
-    return await this.prisma.$transaction(execute);
+    if (finalCount > 0 && this.redis) {
+      await this.redis.delByPattern('catalog:*');
+    }
+    return finalCount;
   }
 
   /**

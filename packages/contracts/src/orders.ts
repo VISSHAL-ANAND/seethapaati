@@ -6,6 +6,7 @@ export enum OrderStatus {
   PROCESSING = 'PROCESSING',
   PACKED = 'PACKED',
   SHIPPED = 'SHIPPED',
+  IN_TRANSIT = 'IN_TRANSIT',
   OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY',
   DELIVERED = 'DELIVERED',
   PAYMENT_FAILED = 'PAYMENT_FAILED',
@@ -45,6 +46,11 @@ export const OrderDtoSchema = z.object({
     currency: z.string().default('INR'),
   }),
   shippingAddress: z.record(z.unknown()),
+  courierName: z.string().optional().nullable(),
+  trackingNumber: z.string().optional().nullable(),
+  trackingUrl: z.string().optional().nullable(),
+  shippedAt: z.string().datetime().optional().nullable(),
+  deliveredAt: z.string().datetime().optional().nullable(),
 });
 
 export type OrderDto = z.infer<typeof OrderDtoSchema>;

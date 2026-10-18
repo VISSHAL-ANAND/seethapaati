@@ -7,6 +7,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { RazorpayAdapter } from './razorpay.adapter';
 import { WebhookService } from './webhook.service';
 import { WebhookController } from './webhook.controller';
+import { FulfillmentModule } from '../fulfillment/fulfillment.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { WebhookController } from './webhook.controller';
     InventoryModule,
     InvoicingModule,
     NotificationsModule,
+    FulfillmentModule,
   ],
   controllers: [WebhookController],
   providers: [PaymentsService, RazorpayAdapter, WebhookService],

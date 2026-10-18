@@ -1,94 +1,177 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { ShoppingBag, User, Menu, X, ArrowUpRight } from 'lucide-react';
+import { useCart } from '../../context/CartContext';
 
 export function SiteHeader() {
-  const [open, setOpen] = useState(false);
-  const close = () => setOpen(false);
+  const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { itemCount, openDrawer } = useCart();
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = '';
+    }
+  }, [pathname]);
+
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen((prev) => {
+      const next = !prev;
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = next ? 'hidden' : '';
+      }
+      return next;
+    });
+  };
+
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = '';
+    }
+  };
 
   return (
     <>
-      <div className="site-announcement" aria-label="Seethapaati brand message">
+      {/* Editorial Top Scrolling Marquee Bar */}
+      <div className="site-announcement" aria-label="Seethapaati brand announcement">
         <div className="site-announcement__track" aria-hidden="true">
           {Array.from({ length: 4 }).map((_, index) => (
             <span className="site-announcement__item" key={index}>
-              <i>✳</i> Welcome to Seethapaati <i>✳</i> A growing collection of everyday favourites <i>✳</i>
+              <i>✳</i> Stone-Ground in Small Batches <i>✳</i> 100% Pure Heirloom Recipes <i>✳</i> Complimentary Delivery on Orders Above ₹499 <i>✳</i> Safe UPI & Card Checkout <i>✳</i>
             </span>
           ))}
         </div>
       </div>
 
-      <header className="sticky top-0 z-40 border-b border-[#E3DFD7] bg-[#F7F5F0]/95 backdrop-blur-sm">
-        <div className="mx-auto flex min-h-[68px] max-w-[1600px] items-center justify-between gap-5 px-6 py-4 md:min-h-[76px] md:px-10">
-          <Link href="/" onClick={close} className="shrink-0 font-serif text-[25px] tracking-[-0.045em] transition-opacity hover:opacity-65" aria-label="Seethapaati home">
-            SEETHAPAATI<span className="ml-1 text-[#B8860B]">.</span>
+      <header className="sticky top-0 z-40 border-b border-[#E3DFD7] bg-[#F7F5F0]/95 backdrop-blur-md transition-colors">
+        <div className="mx-auto flex min-h-[64px] max-w-[1600px] items-center justify-between gap-4 px-5 py-3 md:min-h-[76px] md:px-10">
+          {/* Brand Logo */}
+          <Link
+            href="/"
+            onClick={closeMobileMenu}
+            className="shrink-0 font-serif text-[24px] tracking-[-0.045em] text-[#181513] transition-opacity hover:opacity-75 md:text-[27px]"
+            aria-label="Seethapaati home"
+          >
+            SEETHAPAATI<span className="ml-0.5 text-[#B8860B]">.</span>
           </Link>
 
-          <div className="hidden items-center gap-7 md:flex">
-            <nav aria-label="Main navigation" className="site-header__nav text-[11px] font-medium uppercase tracking-[0.18em]">
+          {/* Desktop Navigation */}
+          <nav aria-label="Main navigation" className="hidden items-center gap-7 md:flex text-[11px] font-medium uppercase tracking-[0.18em]">
             {[
               ['/shop', 'Shop'],
-              ['/about', 'About us'],
+              ['/about', 'Our Story'],
               ['/contact', 'Contact'],
-              ['/account/orders', 'Orders'],
-              ['/cart', 'Bag'],
-            ].map(([href, label]) => (
-              <Link key={href} href={href} className="nav-cube" aria-label={label}>
-                <span className="nav-cube__inner">
-                  <span className="nav-cube__face nav-cube__face--front">{label}{label === 'Bag' && <span aria-hidden="true"> ↗</span>}</span>
-                  <span className="nav-cube__face nav-cube__face--back" aria-hidden="true">{label}{label === 'Bag' && <span aria-hidden="true"> ↗</span>}</span>
-                </span>
-              </Link>
-            ))}
-            </nav>
+              ['/account/orders', 'Track Order'],
+            ].map(([href, label]) => {
+              const isActive = pathname === href || (href !== '/' && pathname.startsWith(href));
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`relative py-1 transition-colors ${
+                    isActive ? 'text-[#B8860B] font-semibold' : 'text-[#181513]/70 hover:text-[#181513]'
+                  }`}
+                >
+                  {label}
+                  {isActive && (
+                    <span className="absolute inset-x-0 -bottom-[1px] h-[1.5px] bg-[#B8860B]" />
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Desktop & Mobile Actions */}
+          <div className="flex items-center gap-2.5 sm:gap-4">
+            {/* Bag Button - Opens Drawer */}
+            <button
+              type="button"
+              onClick={openDrawer}
+              className="relative flex items-center gap-2 border border-[#E3DFD7] px-3.5 py-2 text-[11px] font-medium uppercase tracking-[0.16em] text-[#181513] transition hover:border-[#B8860B] hover:text-[#B8860B] active:scale-95"
+              aria-label={`Shopping bag with ${itemCount} items`}
+            >
+              <ShoppingBag className="h-4 w-4" strokeWidth={1.75} />
+              <span className="hidden sm:inline">Bag</span>
+              <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-[#181513] px-1 text-[10px] font-bold text-[#F7F5F0] tabular-nums">
+                {itemCount}
+              </span>
+            </button>
+
+            {/* Account Icon */}
             <Link
               href="/account"
-              className="account-icon"
+              className="hidden sm:grid h-9 w-9 place-items-center border border-[#E3DFD7] text-[#181513] transition hover:border-[#B8860B] hover:text-[#B8860B]"
               aria-label="Account or sign in"
               title="Account / Sign in"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="8" r="3.5" />
-                <path d="M5.5 20c.7-3.7 2.9-5.7 6.5-5.7s5.8 2 6.5 5.7" />
-              </svg>
+              <User className="h-4 w-4" strokeWidth={1.75} />
             </Link>
-          </div>
 
-          <button
-            type="button"
-            onClick={() => setOpen((value) => !value)}
-            className="grid h-10 w-10 place-items-center border border-[#E3DFD7] md:hidden"
-            aria-expanded={open}
-            aria-controls="mobile-navigation"
-            aria-label={open ? 'Close menu' : 'Open menu'}
-          >
-            <span className="flex w-4 flex-col gap-1.5" aria-hidden="true">
-              <span className="h-px w-full bg-[#181513]" />
-              <span className="h-px w-full bg-[#181513]" />
-            </span>
-          </button>
+            {/* Mobile Hamburger Toggle */}
+            <button
+              type="button"
+              onClick={toggleMobileMenu}
+              className="grid h-9 w-9 place-items-center border border-[#E3DFD7] text-[#181513] md:hidden transition-colors hover:border-[#181513]"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation"
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            >
+              {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
 
-        {open && (
-          <div id="mobile-navigation" className="border-t border-[#E3DFD7] bg-[#F7F5F0] px-6 pb-7 pt-3 md:hidden">
-            <nav aria-label="Mobile navigation" className="divide-y divide-[#E3DFD7]">
+        {/* Mobile Navigation Drawer */}
+        {mobileMenuOpen && (
+          <div
+            id="mobile-navigation"
+            className="fixed inset-x-0 top-[94px] bottom-0 z-50 bg-[#F7F5F0] px-6 py-6 overflow-y-auto md:hidden border-t border-[#E3DFD7] animate-fade-in"
+          >
+            <nav aria-label="Mobile main navigation" className="divide-y divide-[#E3DFD7]">
               {[
-                ['/shop', 'Shop'],
-                ['/about', 'About us'],
-                ['/contact', 'Contact'],
-                ['/account/orders', 'Orders'],
-                ['/cart', 'Bag'],
+                ['/', 'Home'],
+                ['/shop', 'The Collection'],
+                ['/about', 'Our Story & Heritage'],
+                ['/contact', 'Contact & Care'],
+                ['/account/orders', 'Track Orders'],
+                ['/account', 'My Account'],
               ].map(([href, label]) => (
-                <Link key={href} href={href} onClick={close} className="flex items-center justify-between py-4 font-serif text-2xl">
-                  <span>{label}</span><span className="text-sm text-[#B8860B]">↗</span>
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={closeMobileMenu}
+                  className="flex items-center justify-between py-4.5 font-serif text-2xl text-[#181513] transition hover:text-[#B8860B]"
+                >
+                  <span>{label}</span>
+                  <ArrowUpRight className="h-4 w-4 text-[#B8860B]" />
                 </Link>
               ))}
             </nav>
-            <div className="mt-5 flex gap-5 text-xs uppercase tracking-[0.16em] text-[#181513]/60">
-              <Link href="/account" onClick={close}>Account</Link>
-              <Link href="/shipping" onClick={close}>Shipping</Link>
-              <Link href="/returns" onClick={close}>Returns</Link>
+
+            <div className="mt-8 pt-6 border-t border-[#E3DFD7] space-y-3">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/40">
+                Pantry Support & Policies
+              </p>
+              <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-[#181513]/70">
+                <Link href="/shipping" onClick={closeMobileMenu} className="hover:text-[#B8860B]">
+                  Shipping Policy
+                </Link>
+                <Link href="/returns" onClick={closeMobileMenu} className="hover:text-[#B8860B]">
+                  Returns & Care
+                </Link>
+                <Link href="/terms-and-conditions" onClick={closeMobileMenu} className="hover:text-[#B8860B]">
+                  Terms & Conditions
+                </Link>
+                <Link href="/privacy-policy" onClick={closeMobileMenu} className="hover:text-[#B8860B]">
+                  Privacy Policy
+                </Link>
+              </div>
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { fetchApi } from '../../lib/api-client';
 
 type Order = {
@@ -38,21 +38,22 @@ export default function AdminOperationsPage() {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [carrier, setCarrier] = useState('');
   const [tracking, setTracking] = useState('');
+  const [trackingUrl, setTrackingUrl] = useState('');
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [inspection, setInspection] = useState<Record<string, 'SEALED_INTACT' | 'DAMAGED_OPENED'>>({});
 
-  async function selectOrder(order: Order) {
+  const selectOrder = useCallback(async (order: Order) => {
     setSelected(order);
     setInvoice(null);
     setShipment(null);
     try { setShipment(await fetchApi<Shipment>('/orders/' + order.id + '/track')); } catch { setShipment(null); }
     try { setInvoice(await fetchApi<Invoice>('/invoices/admin/order/' + order.id)); } catch { setInvoice(null); }
-  }
+  }, []);
 
-  async function load() {
+  const load = useCallback(async () => {
     setError('');
     try {
       const [o, r] = await Promise.all([
@@ -69,9 +70,9 @@ export default function AdminOperationsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load operations');
     }
-  }
+  }, [selected, selectOrder]);
 
-  useEffect(() => { load().catch(() => undefined); }, []);
+  useEffect(() => { load().catch(() => undefined); }, [load]);
 
   async function updateOrderStatus(status: string) {
     if (!selected) return;
@@ -82,6 +83,31 @@ export default function AdminOperationsPage() {
       await load();
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to update order'); }
     finally { setBusy(false); }
+  }
+
+  async function submitManualTracking() {
+    if (!selected || !carrier.trim() || !tracking.trim()) return;
+    setBusy(true); setMessage(''); setError('');
+    try {
+      const res = await fetchApi<{ order: Order; shipment: Shipment }>('/admin/orders/' + selected.id + '/tracking', {
+        method: 'POST',
+        body: JSON.stringify({
+          courierName: carrier.trim(),
+          trackingNumber: tracking.trim(),
+          trackingUrl: trackingUrl.trim() || undefined,
+        }),
+      });
+      setShipment(res.shipment);
+      setMessage(`Order marked as SHIPPED via ${carrier.trim()} (AWB: ${tracking.trim()})`);
+      setCarrier('');
+      setTracking('');
+      setTrackingUrl('');
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to dispatch order');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function createShipment() {
@@ -188,16 +214,67 @@ export default function AdminOperationsPage() {
               </section>
 
               <section className="border-t border-[#181513] pt-6">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Shipment</p>
-                {!shipment ? <div className="mt-5 space-y-4">
-                  <input value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="Carrier" className="w-full border-b border-[#181513]/25 bg-transparent py-2 text-sm outline-none" />
-                  <input value={tracking} onChange={(e) => setTracking(e.target.value)} placeholder="Tracking number (required before shipping)" className="w-full border-b border-[#181513]/25 bg-transparent py-2 text-sm outline-none" />
-                  <button disabled={busy || !carrier.trim()} onClick={createShipment} className="bg-[#181513] px-4 py-3 text-[10px] uppercase tracking-[0.16em] text-[#F7F5F0] disabled:opacity-40">Create shipment</button>
-                </div> : <div className="mt-5">
-                  <p className="text-sm">{shipment.carrier} · {shipment.trackingNumber || 'Tracking pending'}</p>
-                  <p className="mt-1 text-[10px] uppercase tracking-[0.15em] text-[#181513]/45">{shipment.status.replaceAll('_', ' ')}</p>
-                  <div className="mt-5 flex flex-wrap gap-2">{(shipmentTransitions[shipment.status] || []).map((status) => <button disabled={busy} key={status} onClick={() => updateShipment(status)} className="border border-[#181513] px-3 py-2 text-[10px] uppercase tracking-[0.15em] disabled:opacity-40">{status.replaceAll('_', ' ')}</button>)}</div>
-                </div>}
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#181513]/50">Shipment & Delivery Tracking</p>
+                {!shipment || shipment.status === 'CREATED' ? (
+                  <div className="mt-5 space-y-4">
+                    <input
+                      value={carrier}
+                      onChange={(e) => setCarrier(e.target.value)}
+                      placeholder="Courier partner (e.g. Delhivery, BlueDart, DTDC)"
+                      className="w-full border-b border-[#181513]/25 bg-transparent py-2 text-sm outline-none placeholder-[#181513]/40"
+                    />
+                    <input
+                      value={tracking}
+                      onChange={(e) => setTracking(e.target.value)}
+                      placeholder="Tracking / AWB Number (e.g. 1234567890)"
+                      className="w-full border-b border-[#181513]/25 bg-transparent py-2 text-sm outline-none placeholder-[#181513]/40"
+                    />
+                    <input
+                      value={trackingUrl}
+                      onChange={(e) => setTrackingUrl(e.target.value)}
+                      placeholder="Direct Tracking URL (optional)"
+                      className="w-full border-b border-[#181513]/25 bg-transparent py-2 text-sm outline-none placeholder-[#181513]/40"
+                    />
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        disabled={busy || !carrier.trim() || !tracking.trim()}
+                        onClick={submitManualTracking}
+                        className="bg-[#181513] px-4 py-3 text-[10px] uppercase tracking-[0.16em] text-[#F7F5F0] transition hover:bg-[#2E2824] disabled:opacity-40"
+                      >
+                        Dispatch & Mark Shipped
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-5">
+                    <div className="flex items-baseline justify-between">
+                      <p className="text-sm font-medium">{shipment.carrier} · {shipment.trackingNumber || 'Tracking pending'}</p>
+                      {shipment.trackingUrl && (
+                        <a
+                          href={shipment.trackingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-[#A66B18] underline underline-offset-4 hover:text-[#181513]"
+                        >
+                          Live Carrier Portal ↗
+                        </a>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[10px] uppercase tracking-[0.15em] text-[#181513]/45">{shipment.status.replaceAll('_', ' ')}</p>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {(shipmentTransitions[shipment.status] || []).map((status) => (
+                        <button
+                          disabled={busy}
+                          key={status}
+                          onClick={() => updateShipment(status)}
+                          className="border border-[#181513] px-3 py-2 text-[10px] uppercase tracking-[0.15em] hover:bg-white/40 disabled:opacity-40"
+                        >
+                          {status.replaceAll('_', ' ')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </section>
 
               {invoice && <section className="border-t border-[#181513] pt-6">

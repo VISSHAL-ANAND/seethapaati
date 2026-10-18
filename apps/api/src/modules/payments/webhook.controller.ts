@@ -10,6 +10,7 @@ import {
 import { Request } from 'express';
 import { WebhookService } from './webhook.service';
 import { Public } from '../../common/decorators/public.decorator';
+import { SkipThrottle } from '@nestjs/throttler';
 
 /**
  * WEBHOOK CONTROLLER
@@ -17,6 +18,7 @@ import { Public } from '../../common/decorators/public.decorator';
  * Receives asynchronous webhook callbacks from payment gateways (Razorpay).
  * Unauthenticated via JWT (@Public()), but strictly secured via HMAC signature verification.
  */
+@SkipThrottle()
 @Controller('webhooks')
 export class WebhookController {
   constructor(private webhookService: WebhookService) {}

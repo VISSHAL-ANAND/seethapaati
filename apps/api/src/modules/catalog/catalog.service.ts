@@ -3,8 +3,10 @@ import {
   NotFoundException,
   ConflictException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import {
   CreateCategoryRequest,
   UpdateCategoryRequest,
@@ -21,13 +23,32 @@ import { Prisma } from '@prisma/client';
 export class CatalogService {
   private readonly logger = new Logger(CatalogService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private redis?: RedisService,
+  ) {}
+
+  async invalidateCatalogCache(): Promise<void> {
+    if (!this.redis) return;
+    try {
+      await this.redis.delByPattern('catalog:*');
+      this.logger.log('Catalog Redis cache invalidated (catalog:*)');
+    } catch (err) {
+      this.logger.warn(`Failed to invalidate catalog cache: ${(err as Error).message}`);
+    }
+  }
 
   // -------------------------------------------------------
   // CATEGORIES
   // -------------------------------------------------------
 
   async listCategories() {
+    const cacheKey = 'catalog:categories:tree';
+    if (this.redis) {
+      const cached = await this.redis.getJson<any[]>(cacheKey);
+      if (cached) return cached;
+    }
+
     const all = await this.prisma.category.findMany({
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
@@ -46,12 +67,29 @@ export class CatalogService {
     }
 
     // Return only root-level categories (no parent)
-    return Array.from(nodeMap.values()).filter((node) => node.parentId === null);
+    const tree = Array.from(nodeMap.values()).filter((node) => node.parentId === null);
+
+    if (this.redis) {
+      await this.redis.setJson(cacheKey, tree, 300);
+    }
+
+    return tree;
   }
 
   async getCategoryBySlug(slug: string) {
+    const cacheKey = `catalog:category:${slug}`;
+    if (this.redis) {
+      const cached = await this.redis.getJson<any>(cacheKey);
+      if (cached) return cached;
+    }
+
     const cat = await this.prisma.category.findUnique({ where: { slug } });
     if (!cat) throw new NotFoundException({ error: 'CATEGORY_NOT_FOUND', message: `Category '${slug}' not found` });
+
+    if (this.redis) {
+      await this.redis.setJson(cacheKey, cat, 300);
+    }
+
     return cat;
   }
 
@@ -66,7 +104,7 @@ export class CatalogService {
       if (!parent) throw new NotFoundException({ error: 'PARENT_NOT_FOUND', message: 'Parent category not found' });
     }
 
-    return this.prisma.category.create({
+    const created = await this.prisma.category.create({
       data: {
         name: dto.name,
         slug: dto.slug,
@@ -75,6 +113,9 @@ export class CatalogService {
         sortOrder: dto.sortOrder ?? 0,
       },
     });
+
+    await this.invalidateCatalogCache();
+    return created;
   }
 
   async updateCategory(categoryId: string, dto: UpdateCategoryRequest) {
@@ -86,7 +127,9 @@ export class CatalogService {
       if (slugConflict) throw new ConflictException({ error: 'SLUG_IN_USE', message: `Slug '${dto.slug}' already in use` });
     }
 
-    return this.prisma.category.update({ where: { id: categoryId }, data: dto });
+    const updated = await this.prisma.category.update({ where: { id: categoryId }, data: dto });
+    await this.invalidateCatalogCache();
+    return updated;
   }
 
   // -------------------------------------------------------
@@ -94,6 +137,12 @@ export class CatalogService {
   // -------------------------------------------------------
 
   async listProducts(query: CatalogListQuery, isPublic = true) {
+    const cacheKey = isPublic ? `catalog:products:${JSON.stringify(query)}` : null;
+    if (cacheKey && this.redis) {
+      const cached = await this.redis.getJson<any>(cacheKey);
+      if (cached) return cached;
+    }
+
     const { page, limit, categorySlug, q, sortBy, sortDir } = query;
     const skip = (page - 1) * limit;
 
@@ -163,7 +212,7 @@ export class CatalogService {
       }),
     ]);
 
-    return {
+    const result = {
       data: products.map(this.formatProduct),
       pagination: {
         page,
@@ -172,9 +221,21 @@ export class CatalogService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    if (cacheKey && this.redis) {
+      await this.redis.setJson(cacheKey, result, 300);
+    }
+
+    return result;
   }
 
   async getProductBySlug(slug: string, isPublic = true) {
+    const cacheKey = isPublic ? `catalog:product:slug:${slug}` : null;
+    if (cacheKey && this.redis) {
+      const cached = await this.redis.getJson<any>(cacheKey);
+      if (cached) return cached;
+    }
+
     const product = await this.prisma.product.findUnique({
       where: { slug },
       include: {
@@ -192,7 +253,11 @@ export class CatalogService {
       throw new NotFoundException({ error: 'PRODUCT_NOT_FOUND', message: `Product '${slug}' not found` });
     }
 
-    return this.formatProduct(product);
+    const formatted = this.formatProduct(product);
+    if (cacheKey && this.redis) {
+      await this.redis.setJson(cacheKey, formatted, 300);
+    }
+    return formatted;
   }
 
   async getProductById(productId: string) {
@@ -248,6 +313,7 @@ export class CatalogService {
     });
 
     this.logger.log(`Product created: ${product.id} — ${product.name}`);
+    await this.invalidateCatalogCache();
     return this.formatProduct(product);
   }
 
@@ -285,6 +351,7 @@ export class CatalogService {
     });
 
     this.logger.log(`Product updated: ${productId}`);
+    await this.invalidateCatalogCache();
     return this.formatProduct(updated);
   }
 
@@ -336,6 +403,7 @@ export class CatalogService {
     });
 
     this.logger.log(`Variant created: ${result.id} — SKU: ${result.sku}`);
+    await this.invalidateCatalogCache();
     return result;
   }
 
@@ -348,13 +416,16 @@ export class CatalogService {
       if (skuConflict) throw new ConflictException({ error: 'SKU_IN_USE', message: `SKU '${dto.sku}' already in use` });
     }
 
-    return this.prisma.productVariant.update({
+    const updated = await this.prisma.productVariant.update({
       where: { id: variantId },
       data: dto,
       include: {
         inventory: true,
       },
     });
+
+    await this.invalidateCatalogCache();
+    return updated;
   }
 
   // -------------------------------------------------------
@@ -375,6 +446,7 @@ export class CatalogService {
     });
 
     this.logger.log(`Image added: ${image.id} for product ${productId}`);
+    await this.invalidateCatalogCache();
     return image;
   }
 
@@ -386,6 +458,7 @@ export class CatalogService {
 
     await this.prisma.productImage.delete({ where: { id: imageId } });
     this.logger.log(`Image deleted: ${imageId}`);
+    await this.invalidateCatalogCache();
     return { success: true, message: 'Image deleted successfully' };
   }
 

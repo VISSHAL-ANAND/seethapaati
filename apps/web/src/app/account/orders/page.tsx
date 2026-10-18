@@ -117,13 +117,21 @@ export default function OrdersPage() {
                     ₹{(order.grandTotalCents / 100).toLocaleString('en-IN')}
                   </span>
 
-                  <Link
-                    href={'/orders/' + order.id + '/confirmation'}
-                    className="flex items-center gap-1 border border-[#181513]/30 px-4 py-2 text-xs uppercase tracking-[0.16em] text-[#181513] transition hover:border-[#181513] hover:bg-[#181513] hover:text-[#F7F5F0]"
-                  >
-                    View Details
-                    <ArrowUpRight className="h-3.5 w-3.5" />
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    <Link
+                      href={'/orders/' + order.id}
+                      className="flex items-center gap-1 bg-[#181513] px-3.5 py-2 text-xs uppercase tracking-[0.16em] text-[#F7F5F0] transition hover:bg-[#2E2824]"
+                    >
+                      Track Order
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </Link>
+                    <Link
+                      href={'/orders/' + order.id + '/confirmation'}
+                      className="flex items-center gap-1 border border-[#181513]/30 px-3.5 py-2 text-xs uppercase tracking-[0.16em] text-[#181513] transition hover:border-[#181513] hover:bg-[#181513] hover:text-[#F7F5F0]"
+                    >
+                      Receipt
+                    </Link>
+                  </div>
                 </div>
               </div>
             );
