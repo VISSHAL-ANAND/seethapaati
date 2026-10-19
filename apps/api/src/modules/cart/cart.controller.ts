@@ -142,7 +142,10 @@ export class CartController {
     @Res({ passthrough: true }) res: Response,
     @CurrentUser() user: AuthUser,
   ) {
-    const guestCartId = req.cookies?.[GUEST_CART_COOKIE];
+    const headerCartId = req.headers['x-cart-id'] as string | undefined;
+    const guestCartId =
+      req.cookies?.[GUEST_CART_COOKIE] ||
+      (headerCartId && /^[0-9a-f-]{36}$/i.test(headerCartId) ? headerCartId : undefined);
 
     if (!guestCartId) {
       // No guest cart — just return the user's cart
@@ -154,7 +157,7 @@ export class CartController {
     const userCartId = await this.cartService.mergeGuestCart(guestCartId, user.id);
 
     // Clear the guest cart cookie
-    res.clearCookie(GUEST_CART_COOKIE);
+    res.clearCookie(GUEST_CART_COOKIE, { path: '/' });
 
     const cart = await this.cartService.getCart(userCartId);
     return { success: true, data: cart };
@@ -167,7 +170,7 @@ export class CartController {
   /**
    * Resolve the cartId for this request:
    * 1. Authenticated user → get or create their DB-linked cart
-   * 2. Guest → use cookie-based cartId, creating one if absent
+   * 2. Guest → use cookie-based cartId or X-Cart-Id header, creating one if absent
    */
   private async resolveCartId(
     req: Request,
@@ -178,15 +181,20 @@ export class CartController {
       return this.cartService.getOrCreateCart(userId);
     }
 
-    // Guest: check for existing cookie
-    const existingGuestCartId: string | undefined = req.cookies?.[GUEST_CART_COOKIE];
+    // Guest: check for existing cookie or X-Cart-Id header fallback
+    const headerCartId = req.headers['x-cart-id'] as string | undefined;
+    const cookieCartId: string | undefined = req.cookies?.[GUEST_CART_COOKIE];
+    const existingGuestCartId =
+      cookieCartId ||
+      (headerCartId && /^[0-9a-f-]{36}$/i.test(headerCartId) ? headerCartId : undefined);
+
     const cartId = await this.cartService.getOrCreateCart(undefined, existingGuestCartId);
 
-    // Set cookie if new cart was created
-    if (!existingGuestCartId || existingGuestCartId !== cartId) {
+    // Set cookie if new cart was created or was absent in cookies
+    if (!cookieCartId || cookieCartId !== cartId) {
       res.cookie(GUEST_CART_COOKIE, cartId, {
         httpOnly: true,
-        sameSite: 'strict',
+        sameSite: 'lax',
         secure: process.env.NODE_ENV === 'production',
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         path: '/',

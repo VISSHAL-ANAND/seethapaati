@@ -46,7 +46,20 @@ const nextConfig = {
     ];
   },
   async rewrites() {
+    const rawApiUrl =
+      process.env.INTERNAL_API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      'https://seethapaati-api.onrender.com';
+    const backendUrl = rawApiUrl
+      .trim()
+      .replace(/\/+$/, '')
+      .replace(/\/api\/v1$/, '');
+
     return [
+      {
+        source: '/api/v1/:path*',
+        destination: `${backendUrl}/api/v1/:path*`,
+      },
       {
         source: '/product/:slug',
         destination: '/shop/:slug',

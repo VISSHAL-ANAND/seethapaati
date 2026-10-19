@@ -16,6 +16,10 @@ async function bootstrap() {
   const port = configService.get<number>('PORT', 4000);
   const corsOrigin = configService.get<string>('CORS_ORIGIN', 'http://localhost:3000');
 
+  // Trust reverse proxy (Next.js rewrite proxy & Render edge)
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
+
   // Security Headers
   app.use(
     helmet({
@@ -29,10 +33,28 @@ async function bootstrap() {
 
   // CORS Configuration
   app.enableCors({
-    origin: corsOrigin.split(',').map((o) => o.trim()),
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const allowedOrigins = corsOrigin.split(',').map((o) => o.trim());
+      if (
+        allowedOrigins.includes(origin) ||
+        allowedOrigins.includes('*') ||
+        origin.endsWith('.onrender.com') ||
+        origin.includes('localhost')
+      ) {
+        return callback(null, true);
+      }
+      callback(null, false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Idempotency-Key'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Request-Id',
+      'Idempotency-Key',
+      'X-Cart-Id',
+    ],
   });
 
   // API Versioning Prefix

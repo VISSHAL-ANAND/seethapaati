@@ -1,7 +1,15 @@
 import type { ApiResponse, ApiErrorResponse } from '@seethapaati/contracts';
 
 export function getApiBaseUrl(): string {
-  let base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  // In the browser, always use relative '/api/v1'.
+  // This routes through Next.js reverse proxy rewrites, guaranteeing all cookies are
+  // treated as 100% same-origin first-party cookies (preventing third-party cookie blocking).
+  if (typeof window !== 'undefined') {
+    return '/api/v1';
+  }
+
+  // During SSR (Server-Side Rendering in Node), call the backend directly
+  let base = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
   base = base.trim().replace(/\/+$/, '');
   if (!base.endsWith('/api/v1')) {
     base = `${base}/api/v1`;
@@ -63,12 +71,31 @@ export async function fetchApi<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const baseUrl = getApiBaseUrl();
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  if (cleanEndpoint.startsWith('/api/v1/')) {
+    cleanEndpoint = cleanEndpoint.replace(/^\/api\/v1/, '');
+  }
   const url = `${baseUrl}${cleanEndpoint}`;
 
-  const defaultHeaders: HeadersInit = {
+  const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
   };
+
+  // Dual auth & cart fallback for browsers with strict privacy settings
+  if (typeof window !== 'undefined') {
+    try {
+      const token = localStorage.getItem('seethapaati_access_token');
+      if (token) {
+        defaultHeaders['Authorization'] = `Bearer ${token}`;
+      }
+      const cartId = localStorage.getItem('seethapaati_guest_cart_id');
+      if (cartId) {
+        defaultHeaders['X-Cart-Id'] = cartId;
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   const response = await fetchWithRetry(url, {
     ...options,
@@ -142,5 +169,30 @@ export async function fetchApi<T>(
   }
 
   const successJson = json as ApiResponse<T>;
-  return successJson?.data !== undefined ? successJson.data : (json as T);
+  const data = successJson?.data !== undefined ? successJson.data : (json as T);
+
+  // Synchronize client-side storage for dual fallback
+  if (typeof window !== 'undefined' && data && typeof data === 'object') {
+    try {
+      if ('accessToken' in data && typeof (data as any).accessToken === 'string') {
+        localStorage.setItem('seethapaati_access_token', (data as any).accessToken);
+      }
+      if ('cartId' in data && typeof (data as any).cartId === 'string') {
+        localStorage.setItem('seethapaati_guest_cart_id', (data as any).cartId);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Clear token on logout
+  if (cleanEndpoint === '/auth/logout' && typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem('seethapaati_access_token');
+    } catch {
+      // ignore
+    }
+  }
+
+  return data;
 }
