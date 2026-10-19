@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 async function getInitialShopData(): Promise<{ products: ProductDto[]; categories: CategoryDto[] }> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
   try {
     const [productsRes, categoriesRes] = await Promise.all([
       fetch(`${apiUrl}/catalog/products?limit=36&sortBy=createdAt&sortDir=desc`, { next: { revalidate: 60 } }),
@@ -30,8 +30,8 @@ async function getInitialShopData(): Promise<{ products: ProductDto[]; categorie
     const categories = categoriesRes.ok ? await categoriesRes.json() : [];
 
     return {
-      products: Array.isArray(products) ? products : (products.data ?? []),
-      categories: Array.isArray(categories) ? categories : [],
+      products: Array.isArray(products) ? products : (products?.data ?? []),
+      categories: Array.isArray(categories) ? categories : (categories?.data ?? []),
     };
   } catch {
     return { products: [], categories: [] };

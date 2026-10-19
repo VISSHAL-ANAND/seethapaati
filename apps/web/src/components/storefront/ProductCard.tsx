@@ -38,7 +38,7 @@ export function ProductCard({ product }: { product: ProductDto }) {
 
   return (
     <article className="group flex flex-col h-full bg-[#F7F5F0] border border-[#E3DFD7]/60 hover:border-[#B8860B]/60 transition-all duration-300 rounded-xs overflow-hidden shadow-xs hover:shadow-md">
-      <Link href={'/shop/' + product.slug} className="flex flex-col h-full focus:outline-hidden">
+      <Link href={`/shop/${product.slug}`} className="flex flex-col h-full focus:outline-hidden">
         {/* Media Container */}
         <div className="relative aspect-[4/5] overflow-hidden bg-[#ECE8E0]">
           {image ? (

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import type { ProductDto } from '@seethapaati/contracts';
 import { ProductDetailClient } from '../../../components/storefront/ProductDetailClient';
 
+export const dynamicParams = true;
 export const revalidate = 60;
 
 interface PageProps {
@@ -28,8 +29,8 @@ export async function generateStaticParams() {
     { slug: 'one-powder-for-all' },
     { slug: 'abc-malt-health-mix' },
     { slug: 'premium-ceylon-tea-blend' },
-    { slug: 'traditional-filter-coffee' },
-    { slug: 'heritage-sambar-powder' },
+    { slug: 'traditional-rasam-powder' },
+    { slug: 'traditional-nuts-seed-blend' },
   ];
 }
 
@@ -37,9 +38,16 @@ async function getProduct(slug: string): Promise<ProductDto | null> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
   try {
     const res = await fetch(`${apiUrl}/catalog/products/${slug}`, { next: { revalidate: 60 } });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return (json?.data ?? json) as ProductDto;
+    if (res.ok) {
+      const json = await res.json();
+      return (json?.data ?? json) as ProductDto;
+    }
+    const altRes = await fetch(`${apiUrl}/catalog/products/slug/${slug}`, { next: { revalidate: 60 } });
+    if (altRes.ok) {
+      const json = await altRes.json();
+      return (json?.data ?? json) as ProductDto;
+    }
+    return null;
   } catch {
     return null;
   }

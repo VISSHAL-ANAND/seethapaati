@@ -28,8 +28,11 @@ export function ShopClient({
 
   useEffect(() => {
     if (categories.length === 0) {
-      fetchApi<CategoryDto[]>('/catalog/categories')
-        .then(setCategories)
+      fetchApi<any>('/catalog/categories')
+        .then((res) => {
+          const list = Array.isArray(res) ? res : (res?.data ?? []);
+          setCategories(list);
+        })
         .catch(() => setCategories([]));
     }
   }, [categories.length]);

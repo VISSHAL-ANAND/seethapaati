@@ -96,6 +96,13 @@ export class CatalogController {
     return { success: true, data };
   }
 
+  @Public()
+  @Get('products/slug/:slug')
+  async getProductBySlugAlias(@Param('slug') slug: string) {
+    const data = await this.catalogService.getProductBySlug(slug, true);
+    return { success: true, data };
+  }
+
   // -------------------------------------------------------
   // ADMIN PRODUCT MANAGEMENT
   // -------------------------------------------------------

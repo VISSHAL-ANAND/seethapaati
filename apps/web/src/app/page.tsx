@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 };
 
 async function getProducts(): Promise<ProductDto[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
   try {
     const res = await fetch(`${apiUrl}/catalog/products?limit=50`, {
       next: { revalidate: 60 },
