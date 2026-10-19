@@ -19,18 +19,16 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
+    const redisUrl = this.configService.get<string>('REDIS_URL');
     const host = this.configService.get<string>('REDIS_HOST', 'localhost');
     const port = this.configService.get<number>('REDIS_PORT', 6379);
     const password = this.configService.get<string>('REDIS_PASSWORD');
 
     try {
-      this.client = new Redis({
-        host,
-        port,
-        password: password || undefined,
+      const redisOptions = {
         lazyConnect: true,
         maxRetriesPerRequest: this.isProduction ? 3 : 1,
-        retryStrategy: (times) => {
+        retryStrategy: (times: number) => {
           if (!this.isProduction && times > 3) {
             this.logger.warn('⚠️ Redis unreachable in dev. Operating in local memory fallback mode.');
             return null; // Stop reconnecting after 3 tries in local dev
@@ -41,7 +39,16 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
           }
           return Math.min(times * 100, 2000);
         },
-      });
+      };
+
+      this.client = redisUrl
+        ? new Redis(redisUrl, redisOptions)
+        : new Redis({
+            host,
+            port,
+            password: password || undefined,
+            ...redisOptions,
+          });
 
       this.client.on('connect', () => {
         this.isConnected = true;

@@ -20,16 +20,19 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
+    const redisUrl = this.configService.get<string>('REDIS_URL');
     const host = this.configService.get<string>('REDIS_HOST', 'localhost');
     const port = this.configService.get<number>('REDIS_PORT', 6379);
     const password = this.configService.get<string>('REDIS_PASSWORD');
 
-    const connection = {
-      host,
-      port,
-      password: password || undefined,
-      maxRetriesPerRequest: null,
-    };
+    const connection = redisUrl
+      ? { url: redisUrl, maxRetriesPerRequest: null }
+      : {
+          host,
+          port,
+          password: password || undefined,
+          maxRetriesPerRequest: null,
+        };
 
     // Instantiate core queues
     for (const name of Object.values(QueueName)) {

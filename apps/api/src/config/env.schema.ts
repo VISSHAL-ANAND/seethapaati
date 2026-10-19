@@ -17,6 +17,7 @@ export const EnvSchema = z
     NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
     PORT: z.coerce.number().default(4000),
     DATABASE_URL: z.string().default('postgresql://postgres:postgres@localhost:5432/seethapaati_dev?schema=public'),
+    REDIS_URL: z.string().optional(),
     REDIS_HOST: z.string().default('localhost'),
     REDIS_PORT: z.coerce.number().default(6379),
     REDIS_PASSWORD: z.string().optional(),
