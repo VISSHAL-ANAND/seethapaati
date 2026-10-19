@@ -62,7 +62,7 @@ export default function ContactPage() {
             </a>
 
             <a
-              href="mailto:care@seethapaati.com"
+              href="mailto:seethapatticare@gmail.com"
               className="flex items-start gap-4 border border-[#E3DFD7] bg-white/60 p-5 transition hover:border-[#B8860B] hover:bg-white"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#B8860B]/10 text-[#B8860B]">
@@ -70,7 +70,7 @@ export default function ContactPage() {
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-[#181513]">Email Concierge</p>
-                <p className="mt-0.5 text-sm font-medium text-[#181513]">care@seethapaati.com</p>
+                <p className="mt-0.5 text-sm font-medium text-[#181513]">seethapatticare@gmail.com</p>
                 <p className="mt-1 text-[11px] text-[#181513]/60">Replies within 12 business hours</p>
               </div>
             </a>

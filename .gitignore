@@ -26,6 +26,8 @@ out/
 *.crt
 *.secret
 customer_cookie.txt
+.neon
+
 
 
 # Logs & Monitoring
