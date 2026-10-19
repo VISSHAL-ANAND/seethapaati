@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type { ProductDto } from '@seethapaati/contracts';
 import { ProductDetailClient } from '../../../components/storefront/ProductDetailClient';
+import { getApiBaseUrl, fetchWithRetry } from '../../../lib/api-client';
 
 export const dynamicParams = true;
 export const revalidate = 60;
@@ -11,9 +12,9 @@ interface PageProps {
 }
 
 export async function generateStaticParams() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const apiUrl = getApiBaseUrl();
   try {
-    const res = await fetch(`${apiUrl}/catalog/products?limit=50`, { next: { revalidate: 60 } });
+    const res = await fetchWithRetry(`${apiUrl}/catalog/products?limit=50`, { next: { revalidate: 60 } }, 1, 5000);
     if (res.ok) {
       const data = await res.json();
       const products = Array.isArray(data) ? data : (data.data ?? []);
@@ -21,8 +22,8 @@ export async function generateStaticParams() {
         return products.map((p: any) => ({ slug: p.slug }));
       }
     }
-  } catch {
-    // Fallback if API is offline during build
+  } catch (err) {
+    console.warn('[generateStaticParams] Could not fetch products during build, using static fallback:', (err as Error).message);
   }
 
   return [
@@ -35,20 +36,22 @@ export async function generateStaticParams() {
 }
 
 async function getProduct(slug: string): Promise<ProductDto | null> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const apiUrl = getApiBaseUrl();
   try {
-    const res = await fetch(`${apiUrl}/catalog/products/${slug}`, { next: { revalidate: 60 } });
+    const res = await fetchWithRetry(`${apiUrl}/catalog/products/${slug}`, { next: { revalidate: 60 } }, 2, 8000);
     if (res.ok) {
       const json = await res.json();
       return (json?.data ?? json) as ProductDto;
     }
-    const altRes = await fetch(`${apiUrl}/catalog/products/slug/${slug}`, { next: { revalidate: 60 } });
+    const altRes = await fetchWithRetry(`${apiUrl}/catalog/products/slug/${slug}`, { next: { revalidate: 60 } }, 1, 8000);
     if (altRes.ok) {
       const json = await altRes.json();
       return (json?.data ?? json) as ProductDto;
     }
+    console.warn(`[getProduct] Product not found for slug "${slug}" (Status: ${res.status}, Alt: ${altRes.status})`);
     return null;
-  } catch {
+  } catch (err) {
+    console.error(`[getProduct] Exception fetching product "${slug}":`, (err as Error).message);
     return null;
   }
 }

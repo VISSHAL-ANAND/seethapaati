@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { CategoryDto, ProductDto } from '@seethapaati/contracts';
 import { ShopClient } from '../../components/storefront/ShopClient';
+import { getApiBaseUrl, fetchWithRetry } from '../../lib/api-client';
 
 export const revalidate = 60;
 
@@ -19,11 +20,11 @@ export const metadata: Metadata = {
 };
 
 async function getInitialShopData(): Promise<{ products: ProductDto[]; categories: CategoryDto[] }> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const apiUrl = getApiBaseUrl();
   try {
     const [productsRes, categoriesRes] = await Promise.all([
-      fetch(`${apiUrl}/catalog/products?limit=36&sortBy=createdAt&sortDir=desc`, { next: { revalidate: 60 } }),
-      fetch(`${apiUrl}/catalog/categories`, { next: { revalidate: 60 } }),
+      fetchWithRetry(`${apiUrl}/catalog/products?limit=36&sortBy=createdAt&sortDir=desc`, { next: { revalidate: 60 } }, 2, 8000),
+      fetchWithRetry(`${apiUrl}/catalog/categories`, { next: { revalidate: 60 } }, 2, 8000),
     ]);
 
     const products = productsRes.ok ? await productsRes.json() : [];
@@ -33,7 +34,8 @@ async function getInitialShopData(): Promise<{ products: ProductDto[]; categorie
       products: Array.isArray(products) ? products : (products?.data ?? []),
       categories: Array.isArray(categories) ? categories : (categories?.data ?? []),
     };
-  } catch {
+  } catch (err) {
+    console.error('[getInitialShopData] Error fetching initial shop data:', (err as Error).message);
     return { products: [], categories: [] };
   }
 }

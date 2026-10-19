@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ProductDto } from '@seethapaati/contracts';
 import { HomeClient } from '../components/storefront/HomeClient';
+import { getApiBaseUrl, fetchWithRetry } from '../lib/api-client';
 
 export const revalidate = 60;
 
@@ -35,15 +36,19 @@ export const metadata: Metadata = {
 };
 
 async function getProducts(): Promise<ProductDto[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const apiUrl = getApiBaseUrl();
   try {
-    const res = await fetch(`${apiUrl}/catalog/products?limit=50`, {
-      next: { revalidate: 60 },
-    });
+    const res = await fetchWithRetry(
+      `${apiUrl}/catalog/products?limit=50`,
+      { next: { revalidate: 60 } },
+      2,
+      8000
+    );
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data) ? data : (data.data ?? []);
-  } catch {
+  } catch (err) {
+    console.error('[HomePage getProducts] Error:', (err as Error).message);
     return [];
   }
 }

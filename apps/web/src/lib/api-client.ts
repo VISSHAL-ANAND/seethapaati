@@ -1,6 +1,51 @@
-import { ApiResponse, ApiErrorResponse } from '@seethapaati/contracts';
+import type { ApiResponse, ApiErrorResponse } from '@seethapaati/contracts';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+export function getApiBaseUrl(): string {
+  let base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  base = base.trim().replace(/\/+$/, '');
+  if (!base.endsWith('/api/v1')) {
+    base = `${base}/api/v1`;
+  }
+  return base;
+}
+
+export async function fetchWithRetry(
+  url: string,
+  options: RequestInit = {},
+  retries = 2,
+  timeoutMs = 8000
+): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (res.ok || res.status === 404) {
+        return res;
+      }
+      if (attempt < retries && res.status >= 500) {
+        console.warn(`[fetchWithRetry] Attempt ${attempt + 1} to ${url} failed with status ${res.status}. Retrying...`);
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      return res;
+    } catch (err: any) {
+      clearTimeout(timeout);
+      lastError = err;
+      if (attempt < retries) {
+        console.warn(`[fetchWithRetry] Attempt ${attempt + 1} to ${url} errored (${err?.name || err?.message}). Retrying...`);
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    }
+  }
+  console.error(`[fetchWithRetry] All ${retries + 1} attempts to ${url} failed:`, lastError?.message);
+  throw lastError || new Error(`Failed to fetch from ${url}`);
+}
 
 export class ApiClientError extends Error {
   constructor(
@@ -17,19 +62,21 @@ export async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const baseUrl = getApiBaseUrl();
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${baseUrl}${cleanEndpoint}`;
 
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
   };
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     ...options,
     headers: {
       ...defaultHeaders,
       ...options.headers,
     },
-    credentials: 'include', // Include HttpOnly auth cookies
+    credentials: 'include',
   });
 
   const contentType = response.headers.get('content-type') || '';
