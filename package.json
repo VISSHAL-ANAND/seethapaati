@@ -25,6 +25,9 @@
     "dev:web": "npm --workspace=@seethapaati/web run dev",
     "dev": "npm run build:contracts && npm --workspace=@seethapaati/api run start:dev"
   },
+  "dependencies": {
+    "typescript": "^5.8.2"
+  },
   "devDependencies": {
     "typescript": "^5.8.2"
   }
