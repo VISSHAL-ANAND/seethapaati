@@ -108,12 +108,27 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const updateQuantity = useCallback(
     async (variantId: string, quantity: number): Promise<boolean> => {
+      if (!variantId) return false;
       setIsLoading(true);
       try {
-        const updated = await fetchApi<CartResponse>(`/cart/items/${variantId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ quantity }),
-        });
+        let updated: CartResponse;
+        if (quantity <= 0) {
+          updated = await fetchApi<CartResponse>(`/cart/items/${variantId}`, {
+            method: 'DELETE',
+          });
+        } else {
+          updated = await fetchApi<CartResponse>(`/cart/items/${variantId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ quantity }),
+          });
+        }
+        if (coupon) {
+          try {
+            updated = await fetchApi<CartResponse>(`/cart?coupon=${encodeURIComponent(coupon)}`);
+          } catch {
+            // ignore if coupon no longer applies
+          }
+        }
         setCart(updated);
         return true;
       } catch (err) {
@@ -123,16 +138,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
       }
     },
-    []
+    [coupon]
   );
 
   const removeItem = useCallback(
     async (variantId: string): Promise<boolean> => {
+      if (!variantId) return false;
       setIsLoading(true);
       try {
-        const updated = await fetchApi<CartResponse>(`/cart/items/${variantId}`, {
+        let updated = await fetchApi<CartResponse>(`/cart/items/${variantId}`, {
           method: 'DELETE',
         });
+        if (coupon) {
+          try {
+            updated = await fetchApi<CartResponse>(`/cart?coupon=${encodeURIComponent(coupon)}`);
+          } catch {
+            // ignore if coupon no longer applies
+          }
+        }
         setCart(updated);
         return true;
       } catch (err) {
@@ -142,7 +165,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
       }
     },
-    []
+    [coupon]
   );
 
   const applyCoupon = useCallback(

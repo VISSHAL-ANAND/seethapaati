@@ -34,7 +34,11 @@ export type UserProfile = z.infer<typeof UserProfileSchema>;
 
 export const UpdateProfileRequestSchema = z.object({
   fullName: z.string().min(2).max(100).optional(),
-  phone: z.string().regex(/^\+?[1-9]\d{7,14}$/).optional(),
+  phone: z
+    .preprocess(
+      (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+      z.string().trim().regex(/^\+?[1-9]\d{7,14}$/, 'Invalid phone number format').optional()
+    ),
 });
 
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>;

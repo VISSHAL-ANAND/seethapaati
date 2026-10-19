@@ -14,9 +14,12 @@ export class ZodValidationPipe implements PipeTransform {
           field: err.path.join('.'),
           message: err.message,
         }));
+        const summary = formatted
+          .map((f) => (f.field ? `${f.field}: ${f.message}` : f.message))
+          .join(', ');
         throw new BadRequestException({
           error: 'VALIDATION_FAILED',
-          message: 'Input validation failed',
+          message: summary || 'Input validation failed',
           details: formatted,
         });
       }

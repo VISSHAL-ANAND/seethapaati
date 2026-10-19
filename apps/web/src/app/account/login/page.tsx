@@ -24,11 +24,15 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      await fetchApi('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
       await fetchApi('/cart/merge', { method: 'POST' }).catch(() => {});
       router.replace(next);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to sign in');
+    } catch (err: any) {
+      const msg = err?.message || 'Unable to sign in';
+      setError(Array.isArray(msg) ? msg.join(', ') : String(msg));
     } finally {
       setLoading(false);
     }

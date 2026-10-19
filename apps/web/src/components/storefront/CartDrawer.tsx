@@ -164,9 +164,9 @@ export function CartDrawer() {
                           </h3>
                           <button
                             type="button"
-                            onClick={() => removeItem(item.variantId)}
-                            className="p-1 text-[#181513]/40 hover:text-red-700 transition"
-                            title="Remove"
+                            onClick={() => removeItem(item.variantId || (item as any).id)}
+                            className="p-1 text-[#181513]/40 hover:text-red-700 transition cursor-pointer"
+                            title="Remove from bag"
                             aria-label={`Remove ${item.productName}`}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -183,8 +183,13 @@ export function CartDrawer() {
                           <button
                             type="button"
                             disabled={isLoading}
-                            onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
-                            className="grid h-7 w-7 place-items-center text-xs text-[#181513] transition hover:bg-[#F7F5F0]"
+                            onClick={() =>
+                              item.quantity <= 1
+                                ? removeItem(item.variantId || (item as any).id)
+                                : updateQuantity(item.variantId, item.quantity - 1)
+                            }
+                            className="grid h-7 w-7 place-items-center text-xs text-[#181513] transition hover:bg-[#F7F5F0] cursor-pointer"
+                            title={item.quantity <= 1 ? 'Remove from bag' : 'Decrease quantity'}
                             aria-label="Decrease quantity"
                           >
                             −
@@ -194,9 +199,10 @@ export function CartDrawer() {
                           </span>
                           <button
                             type="button"
-                            disabled={isLoading}
-                            onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
-                            className="grid h-7 w-7 place-items-center text-xs text-[#181513] transition hover:bg-[#F7F5F0]"
+                            disabled={isLoading || item.quantity >= 10}
+                            onClick={() => updateQuantity(item.variantId, Math.min(10, item.quantity + 1))}
+                            className="grid h-7 w-7 place-items-center text-xs text-[#181513] transition hover:bg-[#F7F5F0] disabled:opacity-30 cursor-pointer"
+                            title="Increase quantity"
                             aria-label="Increase quantity"
                           >
                             +
@@ -228,7 +234,7 @@ export function CartDrawer() {
                     <button
                       type="button"
                       onClick={removeCoupon}
-                      className="text-[11px] text-red-700 underline underline-offset-2 hover:opacity-80"
+                      className="text-[11px] text-red-700 underline underline-offset-2 hover:opacity-80 cursor-pointer"
                     >
                       Remove ({pricing.couponCode})
                     </button>
@@ -244,8 +250,14 @@ export function CartDrawer() {
                     <button
                       key={chip.code}
                       type="button"
-                      onClick={() => handleApplyPromo(chip.code)}
-                      className={`inline-flex items-center gap-1 border px-2.5 py-1 text-[10.5px] uppercase tracking-wider transition ${
+                      onClick={() => {
+                        if (pricing?.couponCode === chip.code) {
+                          removeCoupon();
+                        } else {
+                          handleApplyPromo(chip.code);
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1 border px-2.5 py-1 text-[10.5px] uppercase tracking-wider transition cursor-pointer ${
                         pricing?.couponCode === chip.code
                           ? 'border-[#B8860B] bg-[#B8860B] text-[#F7F5F0] font-semibold'
                           : 'border-[#B8860B]/40 bg-white/70 text-[#B8860B] hover:bg-[#B8860B]/10'
@@ -253,6 +265,7 @@ export function CartDrawer() {
                     >
                       <Sparkles className="h-3 w-3" />
                       {chip.label}
+                      {pricing?.couponCode === chip.code && <span className="ml-1 text-[10px]">✕</span>}
                     </button>
                   ))}
                 </div>

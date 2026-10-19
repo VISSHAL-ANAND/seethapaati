@@ -101,9 +101,42 @@ export async function fetchApi<T>(
 
   if (!response.ok || (json && json.success === false)) {
     const errorJson = json as ApiErrorResponse | null;
+    let errorMessage: string | undefined;
+
+    if (errorJson?.error) {
+      const err = errorJson.error;
+      if (Array.isArray(err.message)) {
+        errorMessage = err.message.join(', ');
+      } else if (typeof err.message === 'string' && err.message !== 'Input validation failed') {
+        errorMessage = err.message;
+      }
+
+      // If message is generic or empty, inspect details for field errors
+      if ((!errorMessage || errorMessage === 'Input validation failed') && err.details) {
+        if (Array.isArray(err.details)) {
+          const detailMsgs = err.details
+            .map((d: any) => {
+              if (typeof d === 'string') return d;
+              if (d && typeof d === 'object') {
+                return d.message ? (d.field ? `${d.field}: ${d.message}` : d.message) : JSON.stringify(d);
+              }
+              return String(d);
+            })
+            .filter(Boolean);
+          if (detailMsgs.length > 0) {
+            errorMessage = detailMsgs.join(', ');
+          }
+        }
+      }
+
+      if (!errorMessage && typeof err.message === 'string') {
+        errorMessage = err.message;
+      }
+    }
+
     throw new ApiClientError(
       errorJson?.error?.code || `HTTP_${response.status}`,
-      errorJson?.error?.message || `Request failed with status ${response.status}`,
+      errorMessage || `Request failed with status ${response.status}`,
       errorJson?.error?.details
     );
   }

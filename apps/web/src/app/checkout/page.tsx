@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Script from 'next/script';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ShieldCheck, Lock, Check, Tag } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Lock, Check, Tag, Trash2, Sparkles } from 'lucide-react';
 import type { CartResponse, UserProfile } from '@seethapaati/contracts';
 import { fetchApi, ApiClientError } from '../../lib/api-client';
 import { useCart } from '../../context/CartContext';
@@ -81,7 +81,15 @@ const emptyAddress: Address = {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { coupon: savedCoupon, refreshCart } = useCart();
+  const {
+    cart: contextCart,
+    removeItem,
+    updateQuantity,
+    applyCoupon,
+    removeCoupon,
+    coupon: savedCoupon,
+    refreshCart,
+  } = useCart();
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -95,12 +103,15 @@ export default function CheckoutPage() {
   const [savingAddress, setSavingAddress] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
+  // Sync checkout cart state whenever contextCart changes
   useEffect(() => {
-    // If saved coupon exists, sync it
-    if (savedCoupon && !coupon) {
-      setCoupon(savedCoupon);
+    if (contextCart) {
+      setCart(contextCart);
+      if (contextCart.pricing?.couponCode) {
+        setCoupon(contextCart.pricing.couponCode);
+      }
     }
-  }, [savedCoupon]);
+  }, [contextCart]);
 
   const loadCheckoutData = async (couponToApply?: string) => {
     const activeCoupon = couponToApply !== undefined ? couponToApply : coupon;
@@ -161,23 +172,48 @@ export default function CheckoutPage() {
     }
   }
 
-  async function handleApplyCoupon(code: string) {
-    const trimmed = code.trim().toUpperCase();
-    setCoupon(trimmed);
+  const handleRemoveItem = async (variantId: string) => {
+    if (!variantId) return;
+    setError('');
+    await removeItem(variantId);
+  };
+
+  const handleDecrementItem = async (item: { variantId: string; quantity: number }) => {
+    setError('');
+    if (item.quantity <= 1) {
+      await removeItem(item.variantId);
+    } else {
+      await updateQuantity(item.variantId, item.quantity - 1);
+    }
+  };
+
+  const handleIncrementItem = async (item: { variantId: string; quantity: number }) => {
+    setError('');
+    await updateQuantity(item.variantId, Math.min(10, item.quantity + 1));
+  };
+
+  async function handleToggleCoupon(code: string) {
     setError('');
     setCouponAppliedNotice('');
-    try {
-      const updatedCart = await fetchApi<CartResponse>(`/cart?coupon=${encodeURIComponent(trimmed)}`);
-      setCart(updatedCart);
-      if (updatedCart.pricing.couponCode) {
-        setCouponAppliedNotice(`Promo code "${trimmed}" applied successfully!`);
-        refreshCart(trimmed);
+    const trimmed = code.trim().toUpperCase();
+    if (cart?.pricing.couponCode === trimmed) {
+      await removeCoupon();
+      setCoupon('');
+      setCouponAppliedNotice('');
+    } else {
+      setCoupon(trimmed);
+      const res = await applyCoupon(trimmed);
+      if (res.success) {
+        setCouponAppliedNotice(res.message || `Promo code "${trimmed}" applied!`);
       } else {
-        setError('Coupon code not applicable or minimum order threshold not met.');
+        setError(res.message || 'Coupon code not applicable or minimum order threshold not met.');
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid promo code');
     }
+  }
+
+  async function handleApplyCouponManual() {
+    if (!coupon.trim()) return;
+    await handleToggleCoupon(coupon.trim());
   }
 
   async function saveAddress() {
@@ -565,8 +601,8 @@ export default function CheckoutPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => handleApplyCoupon(coupon)}
-                  className="border border-[#181513] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[#181513] hover:bg-[#181513] hover:text-[#F7F5F0] transition active:scale-95"
+                  onClick={handleApplyCouponManual}
+                  className="border border-[#181513] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[#181513] hover:bg-[#181513] hover:text-[#F7F5F0] transition active:scale-95 cursor-pointer"
                 >
                   Apply
                 </button>
@@ -575,20 +611,28 @@ export default function CheckoutPage() {
               {/* 1-Tap Coupon Chips */}
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="text-[11px] text-[#181513]/60">Quick apply:</span>
-                <button
-                  type="button"
-                  onClick={() => handleApplyCoupon('SEETHA10')}
-                  className="inline-flex items-center gap-1 border border-dashed border-[#B8860B] bg-[#B8860B]/10 px-2.5 py-1 text-[11px] font-semibold text-[#B8860B] hover:bg-[#B8860B] hover:text-[#F7F5F0] transition rounded-xs"
-                >
-                  <Tag className="h-3 w-3" /> SEETHA10 (10% Off)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyCoupon('WELCOME50')}
-                  className="inline-flex items-center gap-1 border border-dashed border-[#B8860B] bg-[#B8860B]/10 px-2.5 py-1 text-[11px] font-semibold text-[#B8860B] hover:bg-[#B8860B] hover:text-[#F7F5F0] transition rounded-xs"
-                >
-                  <Tag className="h-3 w-3" /> WELCOME50 (₹50 Off)
-                </button>
+                {[
+                  { code: 'SEETHA10', label: 'SEETHA10 (10% Off)' },
+                  { code: 'WELCOME50', label: 'WELCOME50 (₹50 Off)' },
+                ].map((chip) => {
+                  const isActive = cart?.pricing.couponCode === chip.code;
+                  return (
+                    <button
+                      key={chip.code}
+                      type="button"
+                      onClick={() => handleToggleCoupon(chip.code)}
+                      className={`inline-flex items-center gap-1 border border-dashed px-2.5 py-1 text-[11px] font-semibold transition rounded-xs cursor-pointer ${
+                        isActive
+                          ? 'border-[#B8860B] bg-[#B8860B] text-[#F7F5F0]'
+                          : 'border-[#B8860B] bg-[#B8860B]/10 text-[#B8860B] hover:bg-[#B8860B] hover:text-[#F7F5F0]'
+                      }`}
+                    >
+                      <Tag className="h-3 w-3" />
+                      {chip.label}
+                      {isActive && <span className="ml-1 text-[10px]">✕</span>}
+                    </button>
+                  );
+                })}
               </div>
 
               {couponAppliedNotice && (
@@ -612,19 +656,59 @@ export default function CheckoutPage() {
               Order Summary ({cart.items.reduce((s, i) => s + i.quantity, 0)} Items)
             </p>
 
-            {/* Item Mini List */}
-            <div className="mt-4 max-h-48 overflow-y-auto divide-y divide-[#E3DFD7]/60 pr-1 text-xs">
+            {/* Item Mini List with Stepper & Remove */}
+            <div className="mt-4 max-h-64 overflow-y-auto divide-y divide-[#E3DFD7]/60 pr-1 text-xs">
               {cart.items.map((item) => (
-                <div key={item.variantId} className="flex items-center justify-between py-2">
-                  <div className="min-w-0 pr-3">
+                <div key={item.variantId} className="flex items-center justify-between py-2.5 gap-2">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-[#181513]">{item.productName}</p>
                     <p className="text-[11px] text-[#181513]/55">
-                      Qty: {item.quantity} · {item.packType}
+                      {item.packType} {item.weightGrams ? `· ${item.weightGrams}g` : ''}
                     </p>
                   </div>
-                  <span className="tabular-nums text-[#181513] font-medium shrink-0">
-                    ₹{(item.lineTotalCents / 100).toLocaleString('en-IN')}
-                  </span>
+
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    {/* Stepper */}
+                    <div className="flex items-center border border-[#E3DFD7] bg-white rounded-xs">
+                      <button
+                        type="button"
+                        onClick={() => handleDecrementItem(item)}
+                        className="grid h-6 w-6 place-items-center text-xs text-[#181513] hover:bg-[#F7F5F0] transition cursor-pointer"
+                        title={item.quantity <= 1 ? 'Remove from bag' : 'Decrease quantity'}
+                        aria-label="Decrease quantity"
+                      >
+                        −
+                      </button>
+                      <span className="grid h-6 min-w-6 place-items-center border-x border-[#E3DFD7] px-1 text-[11px] font-medium tabular-nums">
+                        {item.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={item.quantity >= 10}
+                        onClick={() => handleIncrementItem(item)}
+                        className="grid h-6 w-6 place-items-center text-xs text-[#181513] hover:bg-[#F7F5F0] transition disabled:opacity-30 cursor-pointer"
+                        title="Increase quantity"
+                        aria-label="Increase quantity"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <span className="tabular-nums text-[#181513] font-medium min-w-16 text-right">
+                      ₹{(item.lineTotalCents / 100).toLocaleString('en-IN')}
+                    </span>
+
+                    {/* Remove Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(item.variantId || (item as any).id)}
+                      className="p-1 text-[#181513]/40 hover:text-red-700 transition cursor-pointer"
+                      title="Remove from bag"
+                      aria-label={`Remove ${item.productName}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -655,11 +739,23 @@ export default function CheckoutPage() {
                 </span>
               </div>
 
-              {cart.pricing.discountCents > 0 && (
-                <div className="flex justify-between text-[#B8860B] font-medium">
-                  <span>Coupon Discount</span>
+              {((cart.pricing.couponDiscountCents ?? 0) > 0 || (cart.pricing.discountCents ?? 0) > 0) && (
+                <div className="flex justify-between items-center text-[#B8860B] font-medium">
+                  <span className="flex items-center gap-1.5">
+                    Coupon Discount {cart.pricing.couponCode ? `(${cart.pricing.couponCode})` : ''}
+                    {cart.pricing.couponCode && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleCoupon(cart.pricing.couponCode!)}
+                        className="text-[10px] text-red-700 underline underline-offset-2 hover:opacity-80 cursor-pointer"
+                        title="Remove coupon"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </span>
                   <span className="tabular-nums">
-                    −₹{(cart.pricing.discountCents / 100).toLocaleString('en-IN')}
+                    −₹{(((cart.pricing.couponDiscountCents ?? 0) + (cart.pricing.discountCents ?? 0)) / 100).toLocaleString('en-IN')}
                   </span>
                 </div>
               )}

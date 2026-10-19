@@ -6,8 +6,10 @@ import { ArrowLeft, ShoppingBag, Trash2, CheckCircle2, Truck } from 'lucide-reac
 import type { CartResponse } from '@seethapaati/contracts';
 import { fetchApi } from '../../lib/api-client';
 import { Button } from '../../components/ui/Button';
+import { useCart } from '../../context/CartContext';
 
 export default function CartPage() {
+  const { refreshCart } = useCart();
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,10 +37,11 @@ export default function CartPage() {
     setError('');
     try {
       const updatedCart = await fetchApi<CartResponse>('/cart/items/' + variantId, {
-        method: 'PATCH',
-        body: JSON.stringify({ quantity }),
+        method: quantity <= 0 ? 'DELETE' : 'PATCH',
+        body: quantity <= 0 ? undefined : JSON.stringify({ quantity }),
       });
       setCart(updatedCart);
+      await refreshCart().catch(() => {});
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to update this item. Please try again.');
     } finally {
@@ -176,10 +179,11 @@ export default function CartPage() {
                     <div className="flex items-center border border-[#E3DFD7] bg-white/50">
                       <button
                         type="button"
-                        aria-label="Decrease quantity"
-                        disabled={item.quantity <= 1 || updating.includes(item.variantId)}
+                        aria-label={item.quantity <= 1 ? 'Remove item' : 'Decrease quantity'}
+                        title={item.quantity <= 1 ? 'Remove item' : 'Decrease quantity'}
+                        disabled={updating.includes(item.variantId)}
                         onClick={() => update(item.variantId, item.quantity - 1)}
-                        className="grid h-9 w-9 place-items-center text-sm text-[#181513] transition hover:bg-[#181513]/5 disabled:opacity-25"
+                        className="grid h-9 w-9 place-items-center text-sm text-[#181513] transition hover:bg-[#181513]/5 disabled:opacity-25 cursor-pointer"
                       >
                         −
                       </button>

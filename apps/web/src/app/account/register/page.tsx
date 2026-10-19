@@ -23,11 +23,21 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      await fetchApi('/auth/register', { method: 'POST', body: JSON.stringify(form) });
+      const payload: Record<string, string> = {
+        fullName: form.fullName.trim(),
+        email: form.email.trim(),
+        password: form.password,
+      };
+      if (form.phone && form.phone.trim() !== '') {
+        payload.phone = form.phone.trim();
+      }
+
+      await fetchApi('/auth/register', { method: 'POST', body: JSON.stringify(payload) });
       await fetchApi('/cart/merge', { method: 'POST' }).catch(() => {});
       router.replace(next);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to create account');
+    } catch (err: any) {
+      const msg = err?.message || 'Unable to create account';
+      setError(Array.isArray(msg) ? msg.join(', ') : String(msg));
     } finally {
       setLoading(false);
     }
